@@ -17,7 +17,7 @@ async def collect_logs_continuously(container):
     while True:
         try:
             logs = container.logs(tail=50).decode("utf-8").splitlines()
-            time = datetime.datetime.now(datetime.timezone.utc).isoformat
+            time = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
             for log in logs:
                 log_line = f"[{time}] {log}"
