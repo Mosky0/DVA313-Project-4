@@ -40,8 +40,8 @@ def container_stats(container_id):
     # Only calculate real stats if the container is running
     if status == "running":
         stats = container.stats(stream=False)
-
-        # Extract CPU stats securely
+        
+        # ---- CPU PERCENT (with safe access) ----
         cpu_stats = stats.get("cpu_stats", {})
         precpu_stats = stats.get("precpu_stats", {})
         
@@ -57,15 +57,20 @@ def container_stats(container_id):
         cpu_delta = cpu_total - cpu_total_prev
         system_delta = system_total - system_total_prev
 
-        if system_delta > 0 and cpu_delta > 0:
-            percpu_usage = cpu_usage_stats.get("percpu_usage", [])
-            num_cpus = len(percpu_usage) if percpu_usage else 1
-            cpu_percent = (cpu_delta / system_delta) * num_cpus * 100.0
+        # DEBUG
+        print(f"cpu_total: {cpu_total}, cpu_total_prev: {cpu_total_prev}")
+        print(f"system_total: {system_total}, system_total_prev: {system_total_prev}")
+        print(f"cpu_delta: {cpu_delta}, system_delta: {system_delta}")
 
-        # Extract memory stats securely
-        mem_stats = stats.get("memory_stats", {})
-        mem_usage = mem_stats.get("usage") or mem_stats.get("usage_bytes", 0)
-        mem_limit = mem_stats.get("limit") or mem_stats.get("limit_bytes", 0)
+        if system_delta > 0 and cpu_delta > 0:
+            online_cpus = cpu_stats.get("online_cpus", 1)
+            cpu_percent = (cpu_delta / system_delta) * online_cpus * 100.0
+            print(f"CALCULATED cpu_percent: {cpu_percent}")
+        else:
+            online_cpus = cpu_stats.get("online_cpus", 1)
+            if cpu_total > 0 and system_total > 0:
+                cpu_percent = (cpu_total / system_total) * online_cpus * 100.0
+                print(f"FALLBACK cpu_percent: {cpu_percent}")
 
     mem_usage_fmt = format_bytes(mem_usage)
     mem_limit_fmt = format_bytes(mem_limit)
