@@ -17,30 +17,49 @@
     <tbody></tbody>
   </table>
 
-  <script>
-    async function loadMetrics() {
-      const containersRes = await fetch('/api/containers');
-      const containers = await containersRes.json();
-      const tbody = document.querySelector('#metrics-table tbody');
-      tbody.innerHTML = '';
+<script>
+async function loadMetrics() {
+  const containersRes = await fetch('/api/containers');
+  const containers = await containersRes.json();
+  const tbody = document.querySelector('#metrics-table tbody');
 
-      for (const c of containers) {
-        const statsRes = await fetch(`/api/containers/${c.id}/stats`);
-        const stats = await statsRes.json();
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${c.name}</td>
-          <td>${c.status}</td>
-          <td>${stats.cpu_total}</td>
-          <td>${stats.mem_usage}</td>
-        `;
-        tbody.appendChild(tr);
-      }
+  for (const c of containers) {
+    let row = document.querySelector(`tr[data-id='${c.id}']`);
+    if (!row) {
+      row = document.createElement('tr');
+      row.setAttribute('data-id', c.id);
+      row.innerHTML = `
+        <td class="name"></td>
+        <td class="status"></td>
+        <td class="cpu"></td>
+        <td class="mem"></td>
+      `;
+      tbody.appendChild(row);
     }
 
-    loadMetrics();
-    setInterval(loadMetrics, 3000);
-  </script>
+    const nameCell = row.querySelector('.name');
+    const statusCell = row.querySelector('.status');
+    const cpuCell = row.querySelector('.cpu');
+    const memCell = row.querySelector('.mem');
+
+    nameCell.textContent = c.name;
+    statusCell.textContent = c.status;
+
+    const statsRes = await fetch(`/api/containers/${c.id}/stats`);
+    const stats = await statsRes.json();
+
+    // cpu_percent from backend, formatted to 2 decimals
+    cpuCell.textContent = stats.cpu_percent.toFixed(2) + " %";
+
+    // mem_usage is already "18.34 MB", "2.00 GB", etc.
+    memCell.textContent = stats.mem_usage;
+  }
+}
+
+loadMetrics();
+setInterval(loadMetrics, 3000);
+</script>
+
+
 </body>
 </html>
