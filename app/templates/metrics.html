@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <title>Docker Metrics</title>
+</head>
+<body>
+  <h1>Docker Metrics</h1>
+  <table border="1" id="metrics-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Status</th>
+        <th>CPU</th>
+        <th>Memory</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function loadMetrics() {
+      const containersRes = await fetch('/api/containers');
+      const containers = await containersRes.json();
+      const tbody = document.querySelector('#metrics-table tbody');
+      tbody.innerHTML = '';
+
+      for (const c of containers) {
+        const statsRes = await fetch(`/api/containers/${c.id}/stats`);
+        const stats = await statsRes.json();
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${c.name}</td>
+          <td>${c.status}</td>
+          <td>${stats.cpu_total}</td>
+          <td>${stats.mem_usage}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    loadMetrics();
+    setInterval(loadMetrics, 3000);
+  </script>
+</body>
+</html>

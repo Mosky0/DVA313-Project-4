@@ -8,7 +8,8 @@ def create_app():
     app.config.from_object("config.BaseConfig")
     socketio.init_app(app)
 
-    from app.routes.main import api
-    app.register_blueprint(api)
+    # Register blueprints
+    app.register_blueprint(main_bp)
+    app.register_blueprint(metrics_bp)
 
     return app
