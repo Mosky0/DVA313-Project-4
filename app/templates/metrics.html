@@ -41,7 +41,7 @@
     <script>
       async function loadMetrics() {
         // Fetch containers
-        console.log("Fetching containers...");
+        console.log("Fetching containers:");
         const containersRes = await fetch("/api/containers");
 
         if (!containersRes.ok) {
@@ -68,7 +68,13 @@
 
           const stats = JSON.parse(statsText);
 
-          const tr = document.createElement("tr");
+          // Create row/Check if row already exists
+          let tr = tbody.querySelector(`[data-id="${c.id}"]`);
+          if (!tr) {
+            tr = tbody.insertRow();
+            tr.setAttribute("data-id", c.id);
+          }
+
           const statusClass =
             stats.status === "running" ? "status-running" : "status-exited";
 
