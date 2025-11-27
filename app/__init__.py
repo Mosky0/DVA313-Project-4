@@ -1,6 +1,7 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO
-
+from app.routes.main import main_bp
+from app.routes.metrics import metrics_bp
 socketio = SocketIO(async_mode='eventlet')
 
 def create_app():
@@ -13,3 +14,4 @@ def create_app():
     app.register_blueprint(metrics_bp)
 
     return app
+

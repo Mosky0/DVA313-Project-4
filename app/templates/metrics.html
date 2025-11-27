@@ -51,7 +51,7 @@
         const containersText = await containersRes.text();
         const containers = JSON.parse(containersText);
         const tbody = document.querySelector("#metrics-table tbody");
-        tbody.innerHTML = "";
+        //tbody.innerHTML = ""; delete this
 
         // Fetch stats for each container
         for (const c of containers) {
