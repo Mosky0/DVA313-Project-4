@@ -1,7 +1,9 @@
 from flask import Blueprint, render_template
 
-api = Blueprint("api", __name__)
+main_bp = Blueprint("main", __name__)
 
-@api.route("/")
-def home():
-    return "Hello"
+@main_bp.route("/")
+def metrics_page():
+    return render_template("metrics.html")
+
+

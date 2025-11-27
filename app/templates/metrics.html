@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Docker Metrics</title>
+    <style>
+      body {
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+      }
+      .status-running {
+        color: green;
+        font-weight: bold;
+      }
+      .status-exited {
+        color: red;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Docker Container Metrics</h1>
+    <div id="error-message"></div>
+    <table border="1" id="metrics-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Status</th>
+          <th>CPU %</th>
+          <th>Memory Usage</th>
+          <th>Memory Limit</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <script>
+      async function loadMetrics() {
+        // Fetch containers
+        console.log("Fetching containers...");
+        const containersRes = await fetch("/api/containers");
+
+        if (!containersRes.ok) {
+          throw new Error(`HTTP error! status: ${containersRes.status}`);
+        }
+
+        const containersText = await containersRes.text();
+        const containers = JSON.parse(containersText);
+        const tbody = document.querySelector("#metrics-table tbody");
+        //tbody.innerHTML = ""; delete this
+
+        // Fetch stats for each container
+        for (const c of containers) {
+          const statsRes = await fetch(`/api/containers/${c.id}/stats`);
+
+          if (!statsRes.ok) {
+            console.error(
+              `Error fetching stats for ${c.name}: ${statsRes.status}`
+            );
+            continue; // Skip this container
+          }
+
+          const statsText = await statsRes.text();
+
+          const stats = JSON.parse(statsText);
+
+          const tr = document.createElement("tr");
+          const statusClass =
+            stats.status === "running" ? "status-running" : "status-exited";
+
+          tr.innerHTML = `
+            <td>${c.name}</td>
+            <td class="${statusClass}">${stats.status}</td>
+            <td>${
+              stats.cpu_percent ? stats.cpu_percent.toFixed(2) : "0.00"
+            }%</td>
+            <td>${stats.mem_usage || "N/A"}</td>
+            <td>${stats.mem_limit || "N/A"}</td> 
+          `;
+          tbody.appendChild(tr);
+        }
+      }
+
+      loadMetrics();
+      setInterval(loadMetrics, 3000);
+    </script>
+  </body>
+</html>
