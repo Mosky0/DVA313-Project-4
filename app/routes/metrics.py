@@ -1,5 +1,7 @@
 import docker
+import datetime
 from flask import Blueprint, jsonify
+
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
 docker_client = docker.from_env()
@@ -82,4 +84,19 @@ def container_stats(container_id):
         "mem_limit": mem_limit_fmt,
         "mem_usage_bytes": mem_usage,
         "mem_limit_bytes": mem_limit,
+    })
+
+@metrics_bp.route("/containers/<container_id>/logs")
+def container_logs(container_id):
+    container = docker_client.containers.get(container_id)
+
+    # Get the last 50 log lines from Docker
+    raw = container.logs(tail=50).decode("utf-8", errors="replace")
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    lines = [f"[{now}] {line}" for line in raw.splitlines()]
+
+    return jsonify({
+        "container": container.name,
+        "logs": lines,
     })
