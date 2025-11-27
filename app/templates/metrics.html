@@ -24,7 +24,6 @@
   </head>
   <body>
     <h1>Docker Container Metrics</h1>
-    <div id="error-message"></div>
     <table border="1" id="metrics-table">
       <thead>
         <tr>
@@ -41,53 +40,30 @@
     <script>
       async function loadMetrics() {
         // Fetch containers
-        console.log("Fetching containers:");
         const containersRes = await fetch("/api/containers");
-
-        if (!containersRes.ok) {
-          throw new Error(`HTTP error! status: ${containersRes.status}`);
-        }
-
-        const containersText = await containersRes.text();
-        const containers = JSON.parse(containersText);
+        const containers = await containersRes.json();
         const tbody = document.querySelector("#metrics-table tbody");
-        //tbody.innerHTML = ""; delete this
-
         // Fetch stats for each container
         for (const c of containers) {
           const statsRes = await fetch(`/api/containers/${c.id}/stats`);
-
-          if (!statsRes.ok) {
-            console.error(
-              `Error fetching stats for ${c.name}: ${statsRes.status}`
-            );
-            continue; // Skip this container
-          }
-
-          const statsText = await statsRes.text();
-
-          const stats = JSON.parse(statsText);
-
+          const stats = await statsRes.json();
           // Create row/Check if row already exists
-          let tr = tbody.querySelector(`[data-id="${c.id}"]`);
-          if (!tr) {
-            tr = tbody.insertRow();
-            tr.setAttribute("data-id", c.id);
+          let row = tbody.querySelector(`tr[data-id='${c.id}']`);
+          if (!row) {
+            row = document.createElement("tr");
+            row.setAttribute("data-id", c.id);
+            tbody.appendChild(row);
           }
 
           const statusClass =
             stats.status === "running" ? "status-running" : "status-exited";
-
-          tr.innerHTML = `
+          row.innerHTML = `
             <td>${c.name}</td>
             <td class="${statusClass}">${stats.status}</td>
-            <td>${
-              stats.cpu_percent ? stats.cpu_percent.toFixed(2) : "0.00"
-            }%</td>
-            <td>${stats.mem_usage || "N/A"}</td>
-            <td>${stats.mem_limit || "N/A"}</td> 
+            <td>${stats.cpu_percent.toFixed(2)}%</td>
+            <td>${stats.mem_usage}</td>
+            <td>${stats.mem_limit}</td>
           `;
-          tbody.appendChild(tr);
         }
       }
 
