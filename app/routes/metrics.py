@@ -9,6 +9,7 @@ def format_bytes(num):
         if num < 1024:
             return f"{num:.2f} {unit}"
         num /= 1024
+    return f"{num:.2f} TB"
 
 @metrics_bp.route("/containers")
 def list_containers():
@@ -26,8 +27,7 @@ def list_containers():
 @metrics_bp.route("/containers/<container_id>/stats")
 def container_stats(container_id):
     container = docker_client.containers.get(container_id)
-    stats = container.stats(stream=False)
-
+    
     # Make sure we have the latest status
     container.reload()
     status = container.status
@@ -56,11 +56,14 @@ def container_stats(container_id):
 
         cpu_delta = cpu_total - cpu_total_prev
         system_delta = system_total - system_total_prev
+        
+        online_cpus = cpu_stats.get("online_cpus", 1)
 
+        # Calculate CPU percentage with fallback
         if system_delta > 0 and cpu_delta > 0:
-            percpu_usage = cpu_usage_stats.get("percpu_usage", [])
-            num_cpus = len(percpu_usage) if percpu_usage else 1
-            cpu_percent = (cpu_delta / system_delta) * num_cpus * 100.0
+            cpu_percent = (cpu_delta / system_delta) * online_cpus * 100.0
+        elif cpu_total > 0 and system_total > 0:
+            cpu_percent = (cpu_total / system_total) * online_cpus * 100.0
 
         # Extract memory stats securely
         mem_stats = stats.get("memory_stats", {})
@@ -70,12 +73,11 @@ def container_stats(container_id):
     mem_usage_fmt = format_bytes(mem_usage)
     mem_limit_fmt = format_bytes(mem_limit)
 
-    # Extract relevant metrics
     return jsonify({
         "id": container_id,
         "name": container.name,
         "status": status,
-        "cpu_percent": cpu_percent,
+        "cpu_percent": round(cpu_percent, 2),
         "mem_usage": mem_usage_fmt,
         "mem_limit": mem_limit_fmt,
         "mem_usage_bytes": mem_usage,
