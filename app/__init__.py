@@ -1,10 +1,12 @@
-from flask import Flask
-from app.routes.main import main_bp
-from app.routes.metrics import metrics_bp
+from flask import Flask, render_template
+from flask_socketio import SocketIO
+
+socketio = SocketIO(async_mode='eventlet')
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object("config.BaseConfig")
+    socketio.init_app(app)
 
     # Register blueprints
     app.register_blueprint(main_bp)

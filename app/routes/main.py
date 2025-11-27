@@ -6,3 +6,7 @@ main_bp = Blueprint("main", __name__)
 def metrics_page():
     return render_template("metrics.html")
 
+
+@api.route("/")
+def home():
+    return "Hello"
