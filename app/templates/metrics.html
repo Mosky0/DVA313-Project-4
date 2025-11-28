@@ -157,6 +157,12 @@
 
       loadMetrics();
       setInterval(loadMetrics, 3000);
+
+      setInterval(() => {
+        if (selectedContainerId) {
+          loadLogs(selectedContainerId);
+        }
+      }, 3000);
     </script>
   </body>
 </html>
