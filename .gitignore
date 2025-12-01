@@ -3,3 +3,4 @@ instance/
 *.pyc
 .app/__pycache__/
 .env
+doc/Group4_Hitachi_U.C.D.asta.lock
