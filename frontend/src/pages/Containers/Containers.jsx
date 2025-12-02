@@ -45,13 +45,6 @@ export default function Containers() {
     return valA < valB ? 1 : -1;
   });
 
-  // ---- EXPORT EXCEL ----
-  const exportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(sorted);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Containers");
-    XLSX.writeFile(wb, "containers.xlsx");
-  };
 
   return (
     <div className="p-6">
@@ -106,14 +99,7 @@ export default function Containers() {
           ))}
         </select>
 
-        {/* export */}
-        <button
-          onClick={exportExcel}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-        >
-          <PiMicrosoftExcelLogoFill size={20} />
-          Export
-        </button>
+    
       </div>
     </div>
 
@@ -170,11 +156,7 @@ export default function Containers() {
         </table>
       </div>
 
-      {/* -------------------- PAGINATION -------------------- */}
-      <div className="flex justify-end mt-4 gap-2">
-        <button className="px-3 py-1 rounded border">Previous</button>
-        <button className="px-3 py-1 rounded border">Next</button>
-      </div>
+    
     </div>
   );
 }
