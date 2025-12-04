@@ -1,22 +1,26 @@
+from flask_cors import CORS
 from flask import Flask
 from flask_socketio import SocketIO
 
-# Create the global SocketIO instance first
-socketio = SocketIO()   # let it auto-pick async mode
+
+socketio = SocketIO(cors_allowed_origins="*")
 
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object("config.BaseConfig")
 
-    # Initialize SocketIO
-    socketio.init_app(app)
+    # Enable CORS for all API routes
+    CORS(app)
 
-    # Import blueprints after app & socketio exist
+    # Initialize SocketIO after CORS
+    socketio.init_app(app, cors_allowed_origins="*")
+
+    # Import blueprints
     from app.routes.main import main_bp
     from app.routes.metrics import metrics_bp
 
-    # Register blueprints
+    # Register
     app.register_blueprint(main_bp)
     app.register_blueprint(metrics_bp)
 
