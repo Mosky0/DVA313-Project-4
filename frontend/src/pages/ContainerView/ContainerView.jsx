@@ -72,7 +72,7 @@ export default function ContainerView() {
     };
 
     fetchStats();
-    intervalId = setInterval(fetchStats, 500);
+    intervalId = setInterval(fetchStats, 5000);
 
     return () => clearInterval(intervalId);
   }, [id]);
