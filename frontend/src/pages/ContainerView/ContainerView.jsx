@@ -10,6 +10,12 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { API_BASE_URL } from "../../config"; // adjust path if needed
+import {
+  addContainerMetrics,
+  getStoredMetrics,
+  DEFAULT_BUFFER_SIZE,
+} from "../../utils/ringBuffer";
+
 
 export default function ContainerView() {
   const { id } = useParams(); // from route /containers/:id
@@ -30,6 +36,9 @@ export default function ContainerView() {
     let intervalId;
 
     const fetchStats = () => {
+
+      initializeContainerBuffers(id, DEFAULT_BUFFER_SIZE);
+
       fetch(`${API_BASE_URL}/containers/${id}/stats`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch stats");
@@ -40,19 +49,14 @@ export default function ContainerView() {
           setStats(data);
           setStatsLoading(false);
 
-          const cpuVal = typeof data.cpu_percent === "number" ? data.cpu_percent : 0;
+          addContainerMetrics(id, data); // Store metrics in the ring buffer
 
-          setCpuHistory((prev) => {
-            const next = [
-              ...prev,
-              {
-                time: new Date().toLocaleTimeString(),
-                value: cpuVal,
-              },
-            ];
-            // keep last 20 points
-            return next.slice(-20);
-          });
+          // Get updated history from ring buffer
+          const { cpuHistory: updatedCpuHistory } = getStoredMetrics(id);
+          setCpuHistory(updatedCpuHistory.map(item => ({
+            time: item.timestamp.toLocaleTimeString(),
+            value: item.value
+          })));
         })
         .catch((err) => {
           console.error(err);
