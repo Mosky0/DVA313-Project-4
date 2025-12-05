@@ -1,41 +1,138 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../../config"; // make sure this exists
+
 
 export default function Logs() {
   const navigate = useNavigate();
 
-  /** ------------------ DUMMY DATA FOR NOW ------------------ **/
-  const dummyContainers = [
-    { id: "a1b2", name: "postgres-db" },
-    { id: "c3d4", name: "monitoring-app" },
-    { id: "e5f6", name: "redis-cache" },
-  ];
-
-  const dummyLogs = [
-    "[2025-02-12 10:30:02] Container started successfully...",
-    "[2025-02-12 10:30:03] Checking system dependencies...",
-    "[2025-02-12 10:30:04] CPU usage 12%",
-    "[2025-02-12 10:30:06] Health check OK",
-    "[2025-02-12 10:30:10] Processing requests...",
-    "[2025-02-12 10:30:14] Warning: high memory usage",
-    "[2025-02-12 10:30:20] Connection reset by peer",
-  ];
 
   /** -------------------------------------------------------- **/
 
-  const [containers] = useState(dummyContainers);
+  // List of containers fetched from the backend: [{ id, name, status, image }, ...]
+  const [containers, setContainers] = useState([]);
+
+  // The ID of the currently selected container from the dropdown
   const [selectedContainer, setSelectedContainer] = useState("");
+
+  // Array of log lines for the selected container: ["[time] log line...", ...]
   const [logs, setLogs] = useState([]);
+
+  // Current text in the "Search logs…" input (used to filter the logs)
   const [search, setSearch] = useState("");
 
-  // When container changes → load dummy logs
+  // Are we currently loading the containers list from /api/containers?
+  const [loadingContainers, setLoadingContainers] = useState(false);
+
+  // Are we currently loading logs for the selected container?
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  // Error message to show in the UI if any fetch (containers/logs) fails
+  const [error, setError] = useState("");
+
+
+
+  // Load containers list from backend
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchContainers() {
+      try {
+        setLoadingContainers(true);
+        setError("");
+        const res = await fetch(`${API_BASE_URL}/containers`);
+
+        console.log("Containers response status:", res.status);
+
+        if (!res.ok) {
+          throw new Error(`Failed to load containers: ${res.status}`);
+        }
+
+        const data = await res.json(); // [{ id, name, status, image }]
+        console.log("Containers data:", data);
+
+        if (!isCancelled) {
+          setContainers(data);
+        }
+      } catch (err) {
+        console.error("Error loading containers:", err);
+        if (!isCancelled) {
+          setError("Could not load containers.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoadingContainers(false);
+        }
+      }
+    }
+
+    fetchContainers();
+
+    const interval = setInterval(fetchContainers, 3000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+
+  // Load logs for selected container and poll every 3s
   useEffect(() => {
     if (!selectedContainer) {
       setLogs([]);
-    } else {
-      setLogs(dummyLogs);
+      return;
     }
+
+    console.log("Selected container:", selectedContainer);
+
+    let isCancelled = false;
+
+    async function fetchLogs() {
+      try {
+        setLoadingLogs(true);
+        setError("");
+        const res = await fetch(
+          `${API_BASE_URL}/containers/${selectedContainer}/logs`
+        );
+
+        console.log("Logs response status:", res.status);
+
+        if (!res.ok) {
+          throw new Error(`Failed to load logs: ${res.status}`);
+        }
+
+        const data = await res.json(); // { container, logs: [...] }
+        console.log("Logs data:", data);
+
+        if (!isCancelled) {
+          setLogs(data.logs || []);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!isCancelled) {
+          setError("Could not load logs for this container.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoadingLogs(false);
+        }
+      }
+    }
+
+    // initial load
+    fetchLogs();
+
+    // poll
+    const interval = setInterval(fetchLogs, 3000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
   }, [selectedContainer]);
+
+
 
   // Filter logs in real-time
   const filteredLogs = logs.filter((line) =>
