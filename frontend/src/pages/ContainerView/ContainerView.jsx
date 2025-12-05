@@ -266,7 +266,7 @@ export default function ContainerView() {
                   <LineChart data={cpuHistory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="time" stroke="#555" hide={cpuHistory.length === 0} />
-                    <YAxis stroke="#555" domain={[0, 100]} />
+                    <YAxis stroke="#555" domain={[0, 1]} tickFormatter={(value) => `${value.toFixed(2)}%`} />
                     <Tooltip />
                     <Line
                       type="monotone"
