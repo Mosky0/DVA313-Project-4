@@ -10,6 +10,13 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { API_BASE_URL } from "../../config"; // adjust path if needed
+import {
+  initializeContainerBuffers,
+  addContainerMetrics,
+  getStoredMetrics,
+  DEFAULT_BUFFER_SIZE,
+} from "../../utils/ringBuffer";
+
 
 export default function ContainerView() {
   const { id } = useParams(); // from route /containers/:id
@@ -30,6 +37,9 @@ export default function ContainerView() {
     let intervalId;
 
     const fetchStats = () => {
+
+      initializeContainerBuffers(id, DEFAULT_BUFFER_SIZE);
+
       fetch(`${API_BASE_URL}/containers/${id}/stats`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch stats");
@@ -40,19 +50,19 @@ export default function ContainerView() {
           setStats(data);
           setStatsLoading(false);
 
-          const cpuVal = typeof data.cpu_percent === "number" ? data.cpu_percent : 0;
+          addContainerMetrics(id, data); // Store metrics in the ring buffer
 
-          setCpuHistory((prev) => {
-            const next = [
-              ...prev,
-              {
-                time: new Date().toLocaleTimeString(),
-                value: cpuVal,
-              },
-            ];
-            // keep last 20 points
-            return next.slice(-20);
-          });
+          // Get updated history from ring buffer
+          const metrics = getStoredMetrics(id);
+
+          // Debug logging
+          console.log('Ring buffer metrics:', metrics);
+          
+          const updatedCpuHistory = metrics?.cpuHistory || [];
+          setCpuHistory(updatedCpuHistory.map(item => ({
+            time: item?.timestamp ? new Date(item.timestamp).toLocaleTimeString() : '',
+            value: item?.value || 0
+          })));
         })
         .catch((err) => {
           console.error(err);
@@ -62,7 +72,7 @@ export default function ContainerView() {
     };
 
     fetchStats();
-    intervalId = setInterval(fetchStats, 3000);
+    intervalId = setInterval(fetchStats, 5000);
 
     return () => clearInterval(intervalId);
   }, [id]);
@@ -256,7 +266,7 @@ export default function ContainerView() {
                   <LineChart data={cpuHistory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="time" stroke="#555" hide={cpuHistory.length === 0} />
-                    <YAxis stroke="#555" domain={[0, 100]} />
+                    <YAxis stroke="#555" domain={[0, 1]} tickFormatter={(value) => `${value.toFixed(2)}%`} />
                     <Tooltip />
                     <Line
                       type="monotone"
