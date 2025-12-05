@@ -85,7 +85,7 @@ export class RingBuffer {
 }
 
 // Sturcture that contains {containerId: {cpuBuffer: RingBuffer, memoryBuffer: RingBuffer}}
-export const containerMetricStorage = {};
+export const containerMetricsStorage = {};
 
 /**
  * Initialize the ring buffers
@@ -145,12 +145,12 @@ export const addContainerMetrics = (containerId, metrics) => {
  */
 export const getStoredMetrics = (containerId) => {
   if (!containerMetricsStorage[containerId]) {
-    return { storedCpu: [], storedMemory: [] };
+    return { cpuHistory: [], cpuMemory: [] };
   }
 
   return {
-    storedCpu: containerMetricsStorage[containerId].cpuBuffer.getAll(),
-    storedMemory: containerMetricsStorage[containerId].memoryBuffer.getAll()
+    cpuHistory: containerMetricsStorage[containerId].cpuBuffer.getAll(),
+    memoryHistory: containerMetricsStorage[containerId].memoryBuffer.getAll()
   };
 };
 
@@ -165,7 +165,7 @@ export const getLatestContainerMetrics = (containerId) => {
   }
 
   return {
-    cpu: containerMetricsStorage[containerId].cpuBuffer.getLatest(),
-    memory: containerMetricsStorage[containerId].memoryBuffer.getLatest()
+    cpu: containerMetricsStorage[containerId].cpuBuffer.getLast(),
+    memory: containerMetricsStorage[containerId].memoryBuffer.getLast()
   };
 };

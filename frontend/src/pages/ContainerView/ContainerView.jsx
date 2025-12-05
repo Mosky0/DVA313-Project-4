@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { API_BASE_URL } from "../../config"; // adjust path if needed
 import {
+  initializeContainerBuffers,
   addContainerMetrics,
   getStoredMetrics,
   DEFAULT_BUFFER_SIZE,
@@ -52,10 +53,15 @@ export default function ContainerView() {
           addContainerMetrics(id, data); // Store metrics in the ring buffer
 
           // Get updated history from ring buffer
-          const { cpuHistory: updatedCpuHistory } = getStoredMetrics(id);
+          const metrics = getStoredMetrics(id);
+
+          // Debug logging
+          console.log('Ring buffer metrics:', metrics);
+          
+          const updatedCpuHistory = metrics?.cpuHistory || [];
           setCpuHistory(updatedCpuHistory.map(item => ({
-            time: item.timestamp.toLocaleTimeString(),
-            value: item.value
+            time: item?.timestamp ? new Date(item.timestamp).toLocaleTimeString() : '',
+            value: item?.value || 0
           })));
         })
         .catch((err) => {
@@ -66,7 +72,7 @@ export default function ContainerView() {
     };
 
     fetchStats();
-    intervalId = setInterval(fetchStats, 3000);
+    intervalId = setInterval(fetchStats, 500);
 
     return () => clearInterval(intervalId);
   }, [id]);
