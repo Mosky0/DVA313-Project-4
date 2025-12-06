@@ -1,7 +1,7 @@
 from flask_cors import CORS
 from flask import Flask
 from flask_socketio import SocketIO
-
+from app.services.buffer_service import start_metrics_collection
 
 socketio = SocketIO(cors_allowed_origins="*")
 
@@ -15,6 +15,9 @@ def create_app():
 
     # Initialize SocketIO after CORS
     socketio.init_app(app, cors_allowed_origins="*")
+
+    # Start background service to fill metrics buffer
+    start_metrics_collection()
 
     # Import blueprints
     from app.routes.main import main_bp
