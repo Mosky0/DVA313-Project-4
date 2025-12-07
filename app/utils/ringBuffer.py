@@ -1,65 +1,42 @@
 import threading
 from datetime import datetime
-from collections import defaultdict
+from collections import defaultdict, deque
 
 class RingBuffer:
     def __init__(self, size):
         self.size = size
-        self.buffer = [None] * size
-        self.head = 0
-        self.tail = 0
-        self.count = 0
+        self.buffer = deque(maxlen=size)
         self.lock = threading.Lock()
 
     def push(self, item):
         with self.lock:
-            self.buffer[self.head] = item
-            self.head = (self.head + 1) % self.size
-
-            if self.count < self.size:
-                self.count += 1
-            else:
-                self.tail = (self.tail + 1) % self.size
+            self.buffer.append(item)
 
     def getAll(self):
         with self.lock:
-            if self.count == 0:
-                return []
-            
-            result = []
-            index = self.tail
-
-            for i in range(self.count):
-                result.append(self.buffer[index])
-                index = (index + 1) % self.size
-            
-            return result
+            return list(self.buffer)
 
     def getLast(self):
         with self.lock:
-            if self.count == 0:
+            if len(self.buffer) == 0:
                 return None
-            index = (self.head - 1 + self.size) % self.size
-            return self.buffer[index]
+            return self.buffer[-1]
 
     def clear(self):
         with self.lock:
-            self.head = 0
-            self.tail = 0
-            self.count = 0
+            self.buffer.clear()
 
     def getCount(self):
         with self.lock:
-            return self.count
+            return len(self.buffer)
 
     def isEmpty(self):
         with self.lock:
-            return self.count == 0
+            return len(self.buffer) == 0
 
     def isFull(self):
         with self.lock:
-            return self.count == self.size
-
+            return len(self.buffer) == self.size
 
 containerMetricsStorage = defaultdict(dict)
 
