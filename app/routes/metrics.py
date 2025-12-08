@@ -176,21 +176,21 @@ def container_stats(container_id):
         container = docker_client.containers.get(container_id)
         usage = compute_container_usage(container)
 
-    stats_data = {
-        "id": container_id,
-        "name": container.name,
-        "status": usage["status"],
-        "cpu_percent": usage["cpu_percent"],
-        "mem_usage": usage["mem_usage"],
-        "mem_limit": usage["mem_limit"],
-        "mem_usage_bytes": usage["mem_usage_bytes"],
-        "mem_limit_bytes": usage["mem_limit_bytes"],
-    }
+        stats_data = {
+            "id": container_id,
+            "name": container.name,
+            "status": usage["status"],
+            "cpu_percent": usage["cpu_percent"],
+            "mem_usage": usage["mem_usage"],
+            "mem_limit": usage["mem_limit"],
+            "mem_usage_bytes": usage["mem_usage_bytes"],
+            "mem_limit_bytes": usage["mem_limit_bytes"],
+        }
 
-    # Add to ring buffer
-    addContainerMetrics(container_id, stats_data)
-    
-    return jsonify(stats_data)
+        # Add to ring buffer
+        addContainerMetrics(container_id, stats_data)
+        
+        return jsonify(stats_data), 200
     except NotFound as e:
         logger.error(f"Container not found: {container_id}: {e}")
         return jsonify({
