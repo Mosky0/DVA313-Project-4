@@ -33,12 +33,37 @@ export default function Containers() {
         const mapped = data.map((c) => ({
           id: c.id,
           name: c.name,
-          cpu: c.cpu_percent, 
-          mem: c.mem_usage, 
+          cpu: "-", 
+          mem: "-", 
           status: normalizeStatus(c.status),
         }));
         setRows(mapped);
         setLoading(false);
+
+        // Fetch container metrics
+        mapped.forEach(container => {
+          fetch(`${API_BASE_URL}/containers/${container.id}/stats`)
+            .then(res => {
+              if (!res.ok) throw new Error(`Failed to load stats for ${container.id}`);
+              return res.json();
+            })
+            .then(stats => {
+              setRows(prevRows => 
+                prevRows.map(row => 
+                  row.id === container.id 
+                    ? { 
+                        ...row, 
+                        cpu: stats.cpu_percent !== undefined ? `${stats.cpu_percent.toFixed(2)}%` : "N/A",
+                        mem: stats.mem_usage || "N/A"
+                      } 
+                    : row
+                )
+              );
+            })
+            .catch(err => {
+              console.error(`Failed to fetch stats for container ${container.id}:`, err);
+            });
+        });
       })
       .catch((err) => {
         console.error(err);
@@ -191,8 +216,8 @@ export default function Containers() {
               <tr key={row.id} className="border-b hover:bg-gray-100">
                 <td className="py-3 px-4">{row.id}</td>
                 <td className="py-3 px-4">{row.name}</td>
-                <td className="py-3 px-4">{row.cpu}%</td>
-                <td className="py-3 px-4">{row.mem}%</td>
+                <td className="py-3 px-4">{row.cpu}</td>
+                <td className="py-3 px-4">{row.mem}</td>
                 <td className="py-3 px-4">{row.status}</td>
 
                 <td className="py-3 px-4 text-right">

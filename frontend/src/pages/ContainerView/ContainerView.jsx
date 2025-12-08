@@ -10,13 +10,6 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { API_BASE_URL } from "../../config"; // adjust path if needed
-import {
-  initializeContainerBuffers,
-  addContainerMetrics,
-  getStoredMetrics,
-  DEFAULT_BUFFER_SIZE,
-} from "../../utils/ringBuffer";
-
 
 export default function ContainerView() {
   const { id } = useParams(); // from route /containers/:id
@@ -37,9 +30,6 @@ export default function ContainerView() {
     let intervalId;
 
     const fetchStats = () => {
-
-      initializeContainerBuffers(id, DEFAULT_BUFFER_SIZE);
-
       fetch(`${API_BASE_URL}/containers/${id}/stats`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch stats");
@@ -49,20 +39,6 @@ export default function ContainerView() {
           setStatsError("");
           setStats(data);
           setStatsLoading(false);
-
-          addContainerMetrics(id, data); // Store metrics in the ring buffer
-
-          // Get updated history from ring buffer
-          const metrics = getStoredMetrics(id);
-
-          // Debug logging
-          console.log('Ring buffer metrics:', metrics);
-          
-          const updatedCpuHistory = metrics?.cpuHistory || [];
-          setCpuHistory(updatedCpuHistory.map(item => ({
-            time: item?.timestamp ? new Date(item.timestamp).toLocaleTimeString() : '',
-            value: item?.value || 0
-          })));
         })
         .catch((err) => {
           console.error(err);
@@ -76,6 +52,33 @@ export default function ContainerView() {
 
     return () => clearInterval(intervalId);
   }, [id]);
+
+  // --------- FETCH STORED METRICS ----------
+  useEffect(() => {
+    const fetchHistoricalMetrics = () => {
+      fetch(`${API_BASE_URL}/containers/${id}/metrics/history`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch stored metrics");
+          return res.json();
+        })
+        .then((data) => {
+          const cpuHistoryData = (data.cpuHistory || []).map(item => ({
+            time: new Date(item.timestamp).toLocaleTimeString(),
+            value: item.value
+          }));
+          setCpuHistory(cpuHistoryData);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch stored metrics:", err);
+        });
+    };
+
+    fetchHistoricalMetrics();
+    const interval = setInterval(fetchHistoricalMetrics, 5000);
+
+    return () => clearInterval(interval);
+  }, [id]);
+
 
   // --------- FETCH LOGS WHEN TAB = "logs" ----------
   useEffect(() => {

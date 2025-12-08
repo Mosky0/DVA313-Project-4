@@ -4,6 +4,7 @@ import time
 import docker
 import psutil
 from flask import Blueprint, jsonify
+from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
 docker_client = docker.from_env()
@@ -151,18 +152,41 @@ def container_stats(container_id):
     container = docker_client.containers.get(container_id)
     usage = compute_container_usage(container)
 
-    return jsonify(
-        {
-            "id": container_id,
-            "name": container.name,
-            "status": usage["status"],
-            "cpu_percent": usage["cpu_percent"],
-            "mem_usage": usage["mem_usage"],
-            "mem_limit": usage["mem_limit"],
-            "mem_usage_bytes": usage["mem_usage_bytes"],
-            "mem_limit_bytes": usage["mem_limit_bytes"],
-        }
-    )
+    stats_data = {
+        "id": container_id,
+        "name": container.name,
+        "status": usage["status"],
+        "cpu_percent": usage["cpu_percent"],
+        "mem_usage": usage["mem_usage"],
+        "mem_limit": usage["mem_limit"],
+        "mem_usage_bytes": usage["mem_usage_bytes"],
+        "mem_limit_bytes": usage["mem_limit_bytes"],
+    }
+
+    # Add to ring buffer
+    addContainerMetrics(container_id, stats_data)
+    
+    return jsonify(stats_data)
+
+# ---------------- CONTAINER METRICS HISTORY ----------------
+@metrics_bp.route("/containers/<container_id>/metrics/history")
+def container_metrics_history(container_id):
+    """Return stored metrics for a container."""
+    try:
+        history = getStoredMetrics(container_id)
+        return jsonify(history)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- LATEST CONTAINER METRICS ----------------
+@metrics_bp.route("/containers/<container_id>/metrics/latest")
+def latest_container_metrics(container_id):
+    """Return latest metrics for a container."""
+    try:
+        latest = getLatestContainerMetrics(container_id)
+        return jsonify(latest)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------------- CONTAINER LOGS ----------------
