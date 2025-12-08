@@ -20,6 +20,17 @@
         color: red;
         font-weight: bold;
       }
+      /* logs box */
+      #logs-box {
+        margin-top: 20px;
+        background: #000;
+        color: #0f0;
+        padding: 10px;
+        height: 300px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        font-family: monospace;
+      }
     </style>
   </head>
   <body>
@@ -38,7 +49,17 @@
       <tbody></tbody>
     </table>
 
+    <!-- Logs UI (minimal addition) -->
+    <h2>Container Logs</h2>
+    <label for="log-container-select">Select container:</label>
+    <select id="log-container-select">
+      <option value="">-- choose --</option>
+    </select>
+    <pre id="logs-box"></pre>
+
     <script>
+      let selectedContainerId = "";
+
       async function loadMetrics() {
         // Fetch containers
         console.log("Fetching containers...");
@@ -51,7 +72,7 @@
         const containersText = await containersRes.text();
         const containers = JSON.parse(containersText);
         const tbody = document.querySelector("#metrics-table tbody");
-        //tbody.innerHTML = ""; delete this
+        const rows = []; // collect rows first
 
         // Fetch stats for each container
         for (const c of containers) {
@@ -65,28 +86,83 @@
           }
 
           const statsText = await statsRes.text();
-
           const stats = JSON.parse(statsText);
 
-          const tr = document.createElement("tr");
           const statusClass =
             stats.status === "running" ? "status-running" : "status-exited";
 
-          tr.innerHTML = `
-            <td>${c.name}</td>
-            <td class="${statusClass}">${stats.status}</td>
-            <td>${
-              stats.cpu_percent ? stats.cpu_percent.toFixed(2) : "0.00"
-            }%</td>
-            <td>${stats.mem_usage || "N/A"}</td>
-            <td>${stats.mem_limit || "N/A"}</td> 
-          `;
-          tbody.appendChild(tr);
+          rows.push(`
+            <tr>
+              <td>${c.name}</td>
+              <td class="${statusClass}">${stats.status}</td>
+              <td>${stats.cpu_percent ? stats.cpu_percent.toFixed(2) : "0.00"}%</td>
+              <td>${stats.mem_usage || "N/A"}</td>
+              <td>${stats.mem_limit || "N/A"}</td> 
+            </tr>
+          `);
+        }
+
+        // Update the table in one shot (no stacking, minimal flicker)
+        tbody.innerHTML = rows.join("");
+
+        // Update logs dropdown
+        const select = document.getElementById("log-container-select");
+        const current = selectedContainerId;
+        select.innerHTML = '<option value="">-- choose --</option>';
+
+        for (const c of containers) {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = c.name;
+          if (c.id === current) opt.selected = true;
+          select.appendChild(opt);
+        }
+
+        // If a container is already selected, refresh its logs too
+        if (selectedContainerId) {
+          loadLogs(selectedContainerId);
         }
       }
 
+      async function loadLogs(containerId) {
+        if (!containerId) return;
+
+        try {
+          const res = await fetch(`/api/containers/${containerId}/logs`);
+          if (!res.ok) {
+            console.error("Error fetching logs:", res.status);
+            return;
+          }
+
+          const text = await res.text();
+          const data = JSON.parse(text); // { container, logs }
+          const box = document.getElementById("logs-box");
+          box.textContent = data.logs.join("\n");
+          box.scrollTop = box.scrollHeight;
+        } catch (err) {
+          console.error("Error loading logs:", err);
+        }
+      }
+
+      document
+        .getElementById("log-container-select")
+        .addEventListener("change", (e) => {
+          selectedContainerId = e.target.value;
+          if (selectedContainerId) {
+            loadLogs(selectedContainerId);
+          } else {
+            document.getElementById("logs-box").textContent = "";
+          }
+        });
+
       loadMetrics();
       setInterval(loadMetrics, 3000);
+
+      setInterval(() => {
+        if (selectedContainerId) {
+          loadLogs(selectedContainerId);
+        }
+      }, 3000);
     </script>
   </body>
 </html>

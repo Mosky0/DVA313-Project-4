@@ -1,17 +1,27 @@
-from flask import Flask, render_template
+from flask_cors import CORS
+from flask import Flask
 from flask_socketio import SocketIO
-from app.routes.main import main_bp
-from app.routes.metrics import metrics_bp
-socketio = SocketIO(async_mode='eventlet')
+
+
+socketio = SocketIO(cors_allowed_origins="*")
+
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object("config.BaseConfig")
-    socketio.init_app(app)
 
-    # Register blueprints
+    # Enable CORS for all API routes
+    CORS(app)
+
+    # Initialize SocketIO after CORS
+    socketio.init_app(app, cors_allowed_origins="*")
+
+    # Import blueprints
+    from app.routes.main import main_bp
+    from app.routes.metrics import metrics_bp
+
+    # Register
     app.register_blueprint(main_bp)
     app.register_blueprint(metrics_bp)
 
     return app
-
