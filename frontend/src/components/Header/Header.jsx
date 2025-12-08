@@ -17,18 +17,6 @@ export default function Header() {
         </h1>
       </div>
 
-      {/* Search Bar */}
-      <div className="flex items-center bg-gray-100 px-4 py-2 rounded-xl w-80">
-        
-        <input
-          type="text"
-          placeholder="Search..."
-          className="bg-transparent outline-none text-sm w-full"
-        />
-         <FaSearch className="text-gray-400 text-sm" />
-      </div>
-
-     
     </header>
   );
 }
