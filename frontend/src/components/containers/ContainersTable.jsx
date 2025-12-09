@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { FaChevronUp, FaChevronDown } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { API_BASE_URL } from "../../config";
 
 export default function ContainersTable({ onSelectionChange }) {
@@ -21,13 +22,25 @@ export default function ContainersTable({ onSelectionChange }) {
 
   useEffect(() => {
     let mounted = true;
-
+    const TOAST_ID = "status-error-dashboard";
     async function fetchStatsFor(id, base) {
-      try {
+      try 
+      {
         const res = await fetch(`${API_BASE_URL}/containers/${id}/stats`);
-        if (!res.ok) throw new Error("no-stats");
-        const s = await res.json();
+        var payload = await res.json();
 
+        if (res.status === 410) {
+          if (!toast.isActive(TOAST_ID_404)) {
+            toast.error(payload?.message ?? "Container has been removed from environment", { toastId: TOAST_ID, autoClose: 5000 });
+          }
+        }        
+        else if (!res.ok) {        
+          if (!toast.isActive(TOAST_ID_404)) {
+            toast.error(payload?.message ?? "Failed to fetch container stats", { toastId: TOAST_ID_404, autoClose: 5000 });
+          }
+          throw new Error("no-stats");
+        }
+        
         let cpu_percent = Number(s.cpu_percent ?? s.cpu ?? 0);
 
         if ((!cpu_percent || cpu_percent === 0) && s.cpu_stats && s.precpu_stats) {
@@ -275,7 +288,9 @@ export default function ContainersTable({ onSelectionChange }) {
                 <tr
                   key={r.id}
                   className="border-b hover:bg-gray-50 cursor-pointer"
-                  onClick={() => navigate(`/containers/${r.id}`)}
+                  onClick={() => {
+                    navigate(`/containers/${r.id}`, { state: { name: r?.name } });
+                  }}
                 >
                   <td className="py-2 px-3">
                     <input

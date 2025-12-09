@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { toast } from "react-toastify";
+import { useParams, useLocation } from "react-router-dom";
 import {
   LineChart,
   Line,
@@ -13,8 +14,9 @@ import { API_BASE_URL } from "../../config"; // adjust path if needed
 
 export default function ContainerView() {
   const { id } = useParams(); // from route /containers/:id
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("details");
-
+  const containerName = location.state?.name || "";
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
@@ -28,12 +30,45 @@ export default function ContainerView() {
   // --------- FETCH STATS (poll every 5s) ----------
   useEffect(() => {
     let intervalId;
+    const TOAST_ID= "status-error-container-view";
 
     const fetchStats = () => {
       fetch(`${API_BASE_URL}/containers/${id}/stats`)
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed to fetch stats");
-          return res.json();
+        .then(async (res) => {
+          var payload = await res.json();
+          if (res.status === 410) {
+            if (!toast.isActive(TOAST_ID)) {
+              toast.error(payload?.message ?? "Container has been removed from environment", { toastId: TOAST_ID, autoClose: 5000 });
+            } 
+            var deletedContainerData = {
+                ...payload,
+                "name": containerName,
+            };
+            setStats(deletedContainerData);
+            
+            setStatsError("Container deleted or removed.");
+            setStatsLoading(false);
+
+            clearInterval(intervalId)
+            return data;
+          }
+          else if (!res.ok) {
+            const message = payload.message || "Failed to fetch container stats";
+
+            if (!toast.isActive(TOAST_ID)) {
+              toast.error(message, { toastId: TOAST_ID, autoClose: 5000 });
+            }
+
+            setStatsError("No data from Docker — metrics unavailable.");
+            setStatsLoading(false);
+            var unknownContainerData = {
+                ...payload,
+                "name": containerName,
+            };
+            setStats(unknownContainerData);
+            return unknownContainerData;
+          }
+          return payload;
         })
         .then((data) => {
           setStatsError("");
@@ -345,5 +380,6 @@ function formatStatus(status) {
   const s = status.toLowerCase();
   if (s === "running") return "Running";
   if (s === "exited" || s === "stopped") return "Stopped";
+  if (s === "deleted") return "Deleted";
   return status.charAt(0).toUpperCase() + status.slice(1);
 }

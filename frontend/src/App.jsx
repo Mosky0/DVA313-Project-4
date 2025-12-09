@@ -4,9 +4,14 @@ import Dashboard from "./pages/Dashboard/Dashboard";
 import Containers from "./pages/Containers/Containers";
 import ContainerView from "./pages/ContainerView/ContainerView";
 import Logs from "./pages/Logs/Logs";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function App() {
   return (
+    <>
+    <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
+
     <Routes>
       <Route path="/" element={<MainLayout />}>
         <Route index element={<Dashboard />} />
@@ -18,6 +23,7 @@ export default function App() {
         <Route path="dashboard" element={<Navigate to="/" />} />
       </Route>
     </Routes>
+    </>
   );
 }
 
