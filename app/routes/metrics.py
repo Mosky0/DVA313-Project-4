@@ -6,6 +6,10 @@ import psutil
 from flask import Blueprint, jsonify
 from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics
 
+#cache of metrics
+metrics_cache = {}  # {container_id: {"data": {...}, "ts": <timestamp>}}
+METRICS_TTL_SECONDS = 2  # how long until we use it
+
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
 docker_client = docker.from_env()
 
@@ -21,8 +25,9 @@ def format_bytes(num: int) -> str:
 
 def compute_container_usage(container):
     """Compute CPU% and memory usage for a single container."""
-    container.reload()
+    # container.reload()  # Removed: unnecessary and makes it slower
     status = container.status
+
 
     cpu_percent = 0.0
     mem_usage = 0
@@ -148,7 +153,15 @@ def list_containers():
 # ---------------- PER-CONTAINER STATS ----------------
 @metrics_bp.route("/containers/<container_id>/stats")
 def container_stats(container_id):
-    """Return CPU & memory stats for a single container."""
+    """Return CPU & memory stats for a single container (with small cache)."""
+    now = time.time()
+
+    # 1.try to use cache
+    cached = metrics_cache.get(container_id)
+    if cached and (now - cached["ts"] < METRICS_TTL_SECONDS):
+        return jsonify(cached["data"])
+
+    # 2.or get from docker
     container = docker_client.containers.get(container_id)
     usage = compute_container_usage(container)
 
@@ -163,10 +176,17 @@ def container_stats(container_id):
         "mem_limit_bytes": usage["mem_limit_bytes"],
     }
 
-    # Add to ring buffer
+    #Update chache
+    metrics_cache[container_id] = {
+        "data": stats_data,
+        "ts": now,
+    }
+
+    #Add to ring buffer
     addContainerMetrics(container_id, stats_data)
-    
+
     return jsonify(stats_data)
+
 
 # ---------------- CONTAINER METRICS HISTORY ----------------
 @metrics_bp.route("/containers/<container_id>/metrics/history")
@@ -206,3 +226,5 @@ def container_logs(container_id):
             "logs": lines,
         }
     )
+
+
