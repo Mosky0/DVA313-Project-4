@@ -9,7 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { API_BASE_URL } from "../../config"; // adjust path if needed
+import { API_BASE_URL } from "../../config"; 
 
 export default function ContainerView() {
   const { id } = useParams(); // from route /containers/:id
@@ -19,7 +19,7 @@ export default function ContainerView() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
 
-  const [cpuHistory, setCpuHistory] = useState([]); // for chart
+  const [cpuHistory, setCpuHistory] = useState([]); 
 
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
