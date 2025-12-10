@@ -33,7 +33,7 @@ class MetricsCollector:
 
     def _collect_all_metrics(self):
         try:
-            containers = self.docker_client.containers.list(all=True)
+            containers = self.docker_client.containers.list(filters={'status': 'running'})
             
             for container in containers:
                 try:
