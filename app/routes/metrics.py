@@ -194,15 +194,17 @@ def container_stats(container_id):
     except NotFound as e:
         logger.error(f"Container not found: {container_id}: {e}")
         return jsonify({
-            "error": "Container not found",
-            "container_id": container_id,
+            "message": "Container not found or has been removed",            
+            "status": "deleted",
+            "id": container_id,
         }), 410
 
     except Exception as e:
         logger.error(f"Error retrieving stats for container {container_id}: {e}")
         return jsonify({
-            "error": "Unexpected error occurred",
-            "message": "Failed to retreive container stats",
+            "message": "Failed to retrieve container stats",            
+            "status": "unknown",
+            "id": container_id,
         }), 500
 
 # ---------------- CONTAINER METRICS HISTORY ----------------
