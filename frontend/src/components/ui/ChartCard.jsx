@@ -13,7 +13,7 @@ export default function ChartCard({ title, data, type = "line", dataKey = "value
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="time" />
               <YAxis />
-              <Tooltip />
+              <Tooltip formatter={(value) => [`${Math.round(value)}%`, 'Value']} />
               <Area type="monotone" dataKey={dataKey} stroke="#2496ED" fill="url(#grad)" />
             </AreaChart>
           ) : (

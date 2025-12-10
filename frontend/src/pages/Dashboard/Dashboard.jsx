@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [loadingSys, setLoadingSys] = useState(true);
   const [selectedCores, setSelectedCores] = useState({});
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
+  const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
 
   // SINGLE UNIFIED POLLing effect for system, containers, stats, events
   useEffect(() => {
@@ -41,13 +42,19 @@ export default function Dashboard() {
         const cachedHistory = systemCache.get(historyCacheKey);
         
         if (cachedHistory) {
-          if (mounted) setCPUCoreHistory(cachedHistory.cpuCoreHistories || {});
+          if (mounted) {
+            setCPUCoreHistory(cachedHistory.cpuCoreHistories || {});
+            setSystemMemoryHistory(cachedHistory.memoryHistory || []);
+          }
         } else {
           const historyRes = await fetch(`${API_BASE_URL}/system/metrics/history`);
           const historyData = historyRes.ok ? await historyRes.json() : null;
           if (historyData) {
             systemCache.set(historyCacheKey, historyData);
-            if (mounted) setCPUCoreHistory(historyData.cpuCoreHistories || {});
+            if (mounted) {
+              setCPUCoreHistory(historyData.cpuCoreHistories || {});
+              setSystemMemoryHistory(historyData.memoryHistory || []);
+            }
           }
         }
 
@@ -199,6 +206,18 @@ export default function Dashboard() {
     if (!limit) return 0;
     return Math.round((used / limit) * 100);
   }, [system]);
+
+  const memoryTrendSeries = useMemo(() => {
+    if (!systemMemoryHistory || systemMemoryHistory.length === 0) return [];
+    
+    const maxLength = Math.min(systemMemoryHistory.length, 50);
+    const startIndex = systemMemoryHistory.length - maxLength;
+    
+    return systemMemoryHistory.slice(startIndex).map((entry, idx) => ({
+      time: `t-${maxLength - idx - 1}`,
+      value: entry.value
+    }));
+  }, [systemMemoryHistory]);
 
   const derivedAlerts = useMemo(() => {
     const parseMemPercent = (memStr) => {
@@ -378,15 +397,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow p-4">
           <ChartCard
-            title="Memory trend (sample)"
-            data={[
-              { time: "t-6", value: 40 },
-              { time: "t-5", value: 42 },
-              { time: "t-4", value: 41 },
-              { time: "t-3", value: 47 },
-              { time: "t-2", value: 44 },
-              { time: "now", value: 50 },
-            ]}
+            title="System Memory trend"
+            data={memoryTrendSeries}
             type="area"
           />
         </div>
