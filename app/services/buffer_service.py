@@ -59,7 +59,7 @@ class MetricsCollector:
                 print(f"Error collecting system metrics: {e}")
             
             # Container metrics
-            containers = self.docker_client.containers.list(all=True)
+            containers = self.docker_client.containers.list(filters={'status': 'running'})
             
             for container in containers:
                 try:
