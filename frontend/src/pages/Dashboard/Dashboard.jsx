@@ -346,23 +346,28 @@ export default function Dashboard() {
           <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
           <div className="space-y-3">
             {cpuPerCore.length ? (
-              cpuPerCore.map((v, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={!!selectedCores[i]}
-                    onChange={() => handleCoreToggle(i)}
-                    className="w-4 h-4 cursor-pointer"
-                  />
-                  <div className="w-12 text-xs text-gray-600">CPU {i}</div>
-                  <div className="flex-1">
-                    <div className="bg-gray-100 rounded h-3 overflow-hidden">
-                      <div className="h-3 bg-[#2496ED]" style={{ width: `${v}%` }} />
+              cpuPerCore.map((v, i) => {
+                const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0 
+                  ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value 
+                  : v;
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedCores[i]}
+                      onChange={() => handleCoreToggle(i)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                    <div className="w-12 text-xs text-gray-600">CPU {i}</div>
+                    <div className="flex-1">
+                      <div className="bg-gray-100 rounded h-3 overflow-hidden">
+                        <div className="h-3 bg-[#2496ED]" style={{ width: `${displayValue}%` }} />
+                      </div>
                     </div>
+                    <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
                   </div>
-                  <div className="w-12 text-right text-xs font-medium">{Math.round(v)}%</div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-xs text-gray-500">No per-core data.</div>
             )}
