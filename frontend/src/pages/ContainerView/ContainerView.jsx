@@ -32,8 +32,9 @@ export default function ContainerView() {
   useEffect(() => {
     let intervalId;
     const TOAST_ID= "status-error-container-view";
+    const POL_TIME_MS = 3000;
 
-    const fetchStats = () => {
+    const fetchStats = async () => {
       const statsCacheKey = `container_stats_${id}`;
       const cachedStats = containerCache.get(statsCacheKey);
       
@@ -41,7 +42,6 @@ export default function ContainerView() {
         setStatsError("");
         setStats(cachedStats);
         setStatsLoading(false);
-        return;
       }
       
       fetch(`${API_BASE_URL}/containers/${id}/stats`)
@@ -51,17 +51,13 @@ export default function ContainerView() {
             if (!toast.isActive(TOAST_ID)) {
               toast.error(payload?.message ?? "Container has been removed from environment", { toastId: TOAST_ID, autoClose: 5000 });
             } 
-            var deletedContainerData = {
-                ...payload,
-                "name": containerName,
-            };
-            setStats(deletedContainerData);
+            setStats(payload);
             
             setStatsError("Container deleted or removed.");
             setStatsLoading(false);
 
             clearInterval(intervalId)
-            return data;
+            return payload;
           }
           else if (!res.ok) {
             const message = payload.message || "Failed to fetch container stats";
@@ -72,12 +68,8 @@ export default function ContainerView() {
 
             setStatsError("No data from Docker — metrics unavailable.");
             setStatsLoading(false);
-            var unknownContainerData = {
-                ...payload,
-                "name": containerName,
-            };
-            setStats(unknownContainerData);
-            return unknownContainerData;
+            setStats(payload);
+            return payload;
           }
           return payload;
         })
@@ -95,7 +87,7 @@ export default function ContainerView() {
     };
 
     fetchStats();
-    intervalId = setInterval(fetchStats, 5000);
+    intervalId = setInterval(fetchStats, POL_TIME_MS);
 
     return () => clearInterval(intervalId);
   }, [id]);
@@ -135,7 +127,7 @@ export default function ContainerView() {
     };
 
     fetchHistoricalMetrics();
-    const interval = setInterval(fetchHistoricalMetrics, 5000);
+    const interval = setInterval(fetchHistoricalMetrics, 1000);
 
     return () => clearInterval(interval);
   }, [id]);
@@ -220,7 +212,7 @@ export default function ContainerView() {
         <div>
           <p className="text-gray-500 text-sm">Container</p>
           <h1 className="text-3xl font-bold">
-            Container {stats?.name || id}
+            Container {containerName || id}
           </h1>
 
           <div className="flex gap-4 mt-1 items-center">

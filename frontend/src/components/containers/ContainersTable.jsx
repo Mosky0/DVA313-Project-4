@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { FaChevronUp, FaChevronDown } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
-import { API_BASE_URL } from "../../config";
+
 
 export default function ContainersTable({ containers = [] }) {
   const navigate = useNavigate();
+
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
@@ -13,154 +13,6 @@ export default function ContainersTable({ containers = [] }) {
   const [sortOrder, setSortOrder] = useState("");
 
 
-  // only show loading on the veryfirst fetch
-  const initialLoadRef = useRef(true);
-
-  useEffect(() => {
-    let mounted = true;
-    const TOAST_ID = "status-error-dashboard";
-    async function fetchStatsFor(id, base) {
-      try 
-      {
-        const res = await fetch(`${API_BASE_URL}/containers/${id}/stats`);
-        var payload = await res.json();
-
-        if (res.status === 410) {
-          if (!toast.isActive(TOAST_ID_404)) {
-            toast.error(payload?.message ?? "Container has been removed from environment", { toastId: TOAST_ID, autoClose: 5000 });
-          }
-        }        
-        else if (!res.ok) {        
-          if (!toast.isActive(TOAST_ID_404)) {
-            toast.error(payload?.message ?? "Failed to fetch container stats", { toastId: TOAST_ID_404, autoClose: 5000 });
-          }
-          throw new Error("no-stats");
-        }
-        
-        let cpu_percent = Number(s.cpu_percent ?? s.cpu ?? 0);
-
-        if ((!cpu_percent || cpu_percent === 0) && s.cpu_stats && s.precpu_stats) {
-          const cpuDelta = (s.cpu_stats.cpu_usage?.total_usage ?? 0) - (s.precpu_stats.cpu_usage?.total_usage ?? 0);
-          const systemDelta = (s.cpu_stats.system_cpu_usage ?? 0) - (s.precpu_stats.system_cpu_usage ?? 0);
-          const percpu = s.cpu_stats.cpu_usage?.percpu_usage?.length ?? 1;
-          if (systemDelta > 0 && cpuDelta > 0) {
-            cpu_percent = (cpuDelta / systemDelta) * percpu * 100;
-          }
-        }
-        cpu_percent = Math.round(Number(cpu_percent) * 10) / 10;
-
-        let mem_usage = base.mem_usage ?? "—";
-        let memPercent = 0;
-        if (s.memory_stats) {
-          const usage = s.memory_stats.usage ?? s.memory_stats.rss ?? 0;
-          const limit = s.memory_stats.limit ?? s.memory_stats.max ?? 0;
-          if (usage && limit) {
-            memPercent = Math.round((usage / limit) * 100);
-            mem_usage = `${(usage / 1024 / 1024).toFixed(1)}MB / ${(limit / 1024 / 1024).toFixed(1)}MB`;
-          }
-        } else if (s.mem_usage_bytes && s.mem_limit_bytes) {
-          memPercent = Math.round((s.mem_usage_bytes / s.mem_limit_bytes) * 100);
-          mem_usage = `${Math.round(s.mem_usage_bytes / 1024 / 1024)}MB / ${Math.round(s.mem_limit_bytes / 1024 / 1024)}MB`;
-        } else if (s.mem_usage) {
-          mem_usage = s.mem_usage;
-        }
-
-        return {
-          ...base,
-          cpu_percent: Number.isFinite(cpu_percent) ? cpu_percent : base.cpu_percent ?? 0,
-          mem_usage,
-          mem_percent: memPercent,
-        };
-      } catch (e) {
-        return base;
-      }
-    }
-
-    async function load() {
-      if (initialLoadRef.current) {
-        setLoading(true);
-        setError("");
-      } else {
-        setError("");
-      }
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/containers`);
-        if (!res.ok) throw new Error("Failed to load /containers");
-        const data = await res.json();
-        if (!Array.isArray(data)) throw new Error("Unexpected payload from /containers");
-        if (!mounted) return;
-
-        const mapped = data.map((c) => ({
-          id: c.id,
-          name: c.name || c.id,
-          cpu_percent: Number(c.cpu_percent ?? c.cpu ?? 0),
-          mem_usage: c.mem_usage ?? c.mem ?? "—",
-          status: (c.status ?? "unknown").toString().toLowerCase(),
-        }));
-
-        const needStats = mapped.filter((m) => !m.cpu_percent || m.cpu_percent === 0 || m.mem_usage === "—");
-        if (needStats.length > 0) {
-          const updated = await Promise.all(mapped.map((m) => fetchStatsFor(m.id, m)));
-          if (!mounted) return;
-          setRows(updated);
-        } else {
-          setRows(mapped);
-        }
-      } catch (e) {
-        console.error("ContainersTable load error:", e);
-
-        try {
-          const res2 = await fetch(`${API_BASE_URL}/containers/summary`);
-          if (!res2.ok) throw new Error("Failed to load /containers/summary");
-          const data2 = await res2.json();
-          if (!mounted) return;
-
-          const mapped2 = Array.isArray(data2)
-            ? data2.map((c) => ({
-                id: c.id,
-                name: c.name || c.id,
-                cpu_percent: Number(c.cpu_percent ?? c.cpu ?? 0),
-                mem_usage: c.mem_usage ?? c.mem ?? "—",
-                status: (c.status ?? "unknown").toString().toLowerCase(),
-              }))
-            : [];
-
-          const need = mapped2.filter((m) => !m.cpu_percent || m.cpu_percent === 0 || m.mem_usage === "—");
-          if (need.length > 0) {
-            const updated2 = await Promise.all(mapped2.map((m) => fetchStatsFor(m.id, m)));
-            if (!mounted) return;
-            setRows(updated2);
-          } else {
-            setRows(mapped2);
-          }
-        } catch (e2) {
-          console.error("ContainersTable fallback error:", e2);
-          setError("backend not reachable");
-        }
-      } finally {
-        if (mounted && initialLoadRef.current) setLoading(false);
-        initialLoadRef.current = false;
-      }
-    }
-
-    load();
-    const iv = setInterval(load, 3000);
-    return () => {
-      mounted = false;
-      clearInterval(iv);
-    };
-  }, []);
-
-  // notify dashboard about selection changes
-  useEffect(() => {
-    if (onSelectionChange) {
-      const ids = Object.keys(selected).filter((id) => selected[id]);
-      onSelectionChange(ids);
-    }
-  }, [selected, onSelectionChange]);
-
-  // sorting 
   const handleSort = (field) => {
     if (sortField !== field) {
       setSortField(field);
@@ -174,6 +26,7 @@ export default function ContainersTable({ containers = [] }) {
     } else setSortOrder("desc");
   };
 
+
   const filtered = useMemo(() => {
     return containers.filter((r) => {
       if (filter === "Running" && r.status !== "running") return false;
@@ -184,7 +37,9 @@ export default function ContainersTable({ containers = [] }) {
     });
   }, [containers, filter, search]);
 
+
   const statusOrder = { running: 0, exited: 1, stopped: 1 };
+
 
   const sorted = useMemo(() => {
     if (!sortField) return filtered;
@@ -193,11 +48,13 @@ export default function ContainersTable({ containers = [] }) {
       const A = a[sortField];
       const B = b[sortField];
 
+
       if (sortField === "status") {
         const oa = statusOrder[A] ?? 99;
         const ob = statusOrder[B] ?? 99;
         return sortOrder === "asc" ? oa - ob : ob - oa;
       }
+
 
       if (typeof A === "number" && typeof B === "number") {
         return sortOrder === "asc" ? A - B : B - A;
@@ -207,11 +64,13 @@ export default function ContainersTable({ containers = [] }) {
     return arr;
   }, [filtered, sortField, sortOrder]);
 
+
   const barClassFor = (pct) => {
     if (pct >= 80) return "bg-red-500";
     if (pct >= 50) return "bg-yellow-400";
     return "bg-green-500";
   };
+
 
   return (
     <div className="bg-white rounded-2xl shadow p-4">
@@ -231,6 +90,7 @@ export default function ContainersTable({ containers = [] }) {
           </select>
         </div>
       </div>
+
 
       {/* Table */}
       <div className="overflow-auto">
@@ -255,12 +115,14 @@ export default function ContainersTable({ containers = [] }) {
             </tr>
           </thead>
 
+
           <tbody>
             {sorted.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-4 px-3 text-center text-gray-500">No containers.</td>
               </tr>
             )}
+
 
             {sorted.map((r) => {
               const cpuPct = Math.max(0, Math.min(100, Math.round((r.cpu_percent || 0) * 10) / 10));
@@ -278,7 +140,9 @@ export default function ContainersTable({ containers = [] }) {
                     <div className="font-mono text-xs">{r.id}</div>
                   </td>
 
+
                   <td className="py-2 px-3">{r.name}</td>
+
 
                   <td className="py-2 px-3 w-44">
                     <div className="flex items-center gap-2">
@@ -291,9 +155,11 @@ export default function ContainersTable({ containers = [] }) {
                     </div>
                   </td>
 
+
                   <td className="py-2 px-3 w-48">
                     <div className="text-xs text-gray-600">{r.mem_usage || "—"}</div>
                   </td>
+
 
                   <td className="py-2 px-3">
                     <span className={`px-2 py-1 rounded text-xs font-semibold ${isRunning ? "text-green-700 bg-green-50" : "text-red-700 bg-red-50"}`}>
