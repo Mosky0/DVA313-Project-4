@@ -1,20 +1,16 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useMemo, useState } from "react";
 import { FaChevronUp, FaChevronDown } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { API_BASE_URL } from "../../config";
 
-export default function ContainersTable({ onSelectionChange }) {
+export default function ContainersTable({ containers = [] }) {
   const navigate = useNavigate();
 
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [sortField, setSortField] = useState("");
-  const [sortOrder, setSortOrder] = useState(""); 
-  const [error, setError] = useState("");
-  const [selected, setSelected] = useState({}); 
+  const [sortOrder, setSortOrder] = useState("");
 
 
   // only show loading on the veryfirst fetch
@@ -178,16 +174,15 @@ export default function ContainersTable({ onSelectionChange }) {
     } else setSortOrder("desc");
   };
 
-  // filter+search
   const filtered = useMemo(() => {
-    return rows.filter((r) => {
+    return containers.filter((r) => {
       if (filter === "Running" && r.status !== "running") return false;
       if (filter === "Stopped" && r.status !== "exited" && r.status !== "stopped") return false;
       const q = search.trim().toLowerCase();
       if (!q) return true;
       return (r.name || "").toLowerCase().includes(q) || (r.id || "").toLowerCase().includes(q);
     });
-  }, [rows, filter, search]);
+  }, [containers, filter, search]);
 
   const statusOrder = { running: 0, exited: 1, stopped: 1 };
 
@@ -218,17 +213,6 @@ export default function ContainersTable({ onSelectionChange }) {
     return "bg-green-500";
   };
 
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl shadow p-4">
-        <div className="animate-pulse space-y-3">
-          <div className="h-6 bg-gray-200 rounded w-48"></div>
-          <div className="h-40 bg-gray-100 rounded"></div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-white rounded-2xl shadow p-4">
       {/* Search + filter */}
@@ -246,8 +230,6 @@ export default function ContainersTable({ onSelectionChange }) {
             <option>Stopped</option>
           </select>
         </div>
-
-        <div className="text-sm text-gray-500">{error}</div>
       </div>
 
       {/* Table */}
@@ -255,7 +237,6 @@ export default function ContainersTable({ onSelectionChange }) {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-700">
             <tr>
-              <th className="py-2 px-3 text-left">Sel</th>
               <th className="py-2 px-3 text-left cursor-pointer" onClick={() => handleSort("id")}>
                 <div className="flex items-center gap-1">ID {sortField === "id" && (sortOrder === "desc" ? <FaChevronDown /> : sortOrder === "asc" ? <FaChevronUp /> : null)}</div>
               </th>
@@ -277,7 +258,7 @@ export default function ContainersTable({ onSelectionChange }) {
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-4 px-3 text-center text-gray-500">No containers.</td>
+                <td colSpan={5} className="py-4 px-3 text-center text-gray-500">No containers.</td>
               </tr>
             )}
 
@@ -292,15 +273,6 @@ export default function ContainersTable({ onSelectionChange }) {
                     navigate(`/containers/${r.id}`, { state: { name: r?.name } });
                   }}
                 >
-                  <td className="py-2 px-3">
-                    <input
-                      type="checkbox"
-                      checked={!!selected[r.id]}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => setSelected((s) => ({ ...s, [r.id]: e.target.checked }))}
-                    />
-                  </td>
-
                   <td className="py-2 px-3 flex items-center">
                     <div className={`w-1 h-8 rounded mr-3 ${isRunning ? "bg-green-500" : "bg-red-500"}`} />
                     <div className="font-mono text-xs">{r.id}</div>
@@ -337,4 +309,3 @@ export default function ContainersTable({ onSelectionChange }) {
     </div>
   );
 }
-
