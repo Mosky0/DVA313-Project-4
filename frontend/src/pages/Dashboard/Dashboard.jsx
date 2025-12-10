@@ -316,8 +316,11 @@ export default function Dashboard() {
   const uptime = system?.uptime || "N/A";
   const totalProcesses = system?.total_processes ?? 0;
   const running = system?.running ?? 0;
-  const cpuTotal = system?.cpu?.total_percent ?? 0;
   const cpuPerCore = system?.cpu?.per_core || [];
+  
+  const cpuAvg = cpuPerCore.length > 0 
+    ? cpuPerCore.reduce((sum, core) => sum + core, 0) / cpuPerCore.length
+    : 0;
 
   return (
     <div className="p-6 space-y-6">
@@ -334,7 +337,7 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow flex items-center">
-          <CircleMetric value={Math.round(cpuTotal)} label="CPU Avg" />
+          <CircleMetric value={Math.round(cpuAvg)} label="CPU Avg" />
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow">
