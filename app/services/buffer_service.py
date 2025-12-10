@@ -1,7 +1,8 @@
 import docker
 import threading
 import time
-from app.utils.ringBuffer import addContainerMetrics
+import psutil
+from app.utils.ringBuffer import addContainerMetrics, addSystemMetrics
 from app.routes.metrics import compute_container_usage
 
 class MetricsCollector:
@@ -33,6 +34,31 @@ class MetricsCollector:
 
     def _collect_all_metrics(self):
         try:
+            try:
+                # Host metrics
+                total_cpu = psutil.cpu_percent(interval=None)
+                per_core = psutil.cpu_percent(interval=None, percpu=True)
+                
+                mem = psutil.virtual_memory()
+                used_bytes = mem.used
+                limit_bytes = mem.total
+                
+                system_data = {
+                    "cpu": {
+                        "total_percent": total_cpu,
+                        "per_core": per_core,
+                    },
+                    "memory": {
+                        "used_bytes": used_bytes,
+                        "limit_bytes": limit_bytes,
+                    },
+                }
+                
+                addSystemMetrics(system_data)
+            except Exception as e:
+                print(f"Error collecting system metrics: {e}")
+            
+            # Container metrics
             containers = self.docker_client.containers.list(filters={'status': 'running'})
             
             for container in containers:

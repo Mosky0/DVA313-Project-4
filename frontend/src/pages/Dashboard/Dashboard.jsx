@@ -6,6 +6,7 @@ import { API_BASE_URL } from "../../config";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
+import { systemCache, containerCache, eventCache } from "../../utils/cache";
 
 export default function Dashboard() {
   const [system, setSystem] = useState(null);
@@ -13,6 +14,7 @@ export default function Dashboard() {
   const [events, setEvents] = useState([]);
   const [loadingSys, setLoadingSys] = useState(true);
   const [selectedCores, setSelectedCores] = useState({});
+  const [cpuCoreHistory, setCPUCoreHistory] = useState({});
 
   // SINGLE UNIFIED POLLing effect for system, containers, stats, events
   useEffect(() => {
@@ -20,15 +22,49 @@ export default function Dashboard() {
 
     const pollAllData = async () => {
       try {
-        // Fetch system
-        const sysRes = await fetch(`${API_BASE_URL}/system`);
-        const sysData = sysRes.ok ? await sysRes.json() : null;
-        if (mounted && sysData) setSystem(sysData);
+        // Fetch system and cache
+        const systemCacheKey = 'dashboard_system';
+        const cachedSystemData = systemCache.get(systemCacheKey);
+        
+        if (cachedSystemData) {
+          if (mounted) setSystem(cachedSystemData);
+        } else {
+          const sysRes = await fetch(`${API_BASE_URL}/system`);
+          const sysData = sysRes.ok ? await sysRes.json() : null;
+          if (sysData) {
+            systemCache.set(systemCacheKey, sysData);
+            if (mounted) setSystem(sysData);
+          }
+        }
+
+        const historyCacheKey = 'system_metrics_history';
+        const cachedHistory = systemCache.get(historyCacheKey);
+        
+        if (cachedHistory) {
+          if (mounted) setCPUCoreHistory(cachedHistory.cpuCoreHistories || {});
+        } else {
+          const historyRes = await fetch(`${API_BASE_URL}/system/metrics/history`);
+          const historyData = historyRes.ok ? await historyRes.json() : null;
+          if (historyData) {
+            systemCache.set(historyCacheKey, historyData);
+            if (mounted) setCPUCoreHistory(historyData.cpuCoreHistories || {});
+          }
+        }
 
         // Fetch containers list
-        const contRes = await fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" });
-        if (!contRes.ok) return;
-        const contListData = await contRes.json();
+        const containersCacheKey = 'dashboard_containers_list';
+        const cachedContainersList = containerCache.get(containersCacheKey);
+        
+        let contListData;
+        if (cachedContainersList) {
+          contListData = cachedContainersList;
+        } else {
+          const contRes = await fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" });
+          if (contRes.ok) {
+            contListData = await contRes.json();
+            containerCache.set(containersCacheKey, contListData);
+          }
+        }
 
         if (!mounted || !Array.isArray(contListData)) return;
 
@@ -41,28 +77,38 @@ export default function Dashboard() {
           status: (c.status || c.Status || "").toString().toLowerCase(),
         }));
 
-        // Fetch stats for ALL containers 
-        const statsPromises = mapped.map((container) =>
-          fetch(`${API_BASE_URL}/containers/${container.id}/stats`)
-            .then((res) => (res.ok ? res.json() : null))
-            .then((stats) => {
-              if (!stats) return null;
-              // CPU value comes as decimal multiply by 100 to get percentage
-              const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
-              const cpuValue = rawCpu < 10 ? rawCpu * 100 : rawCpu; 
-              console.log(`Stats for ${container.id}:`, stats);
-              console.log(`  → raw cpu: ${rawCpu}, display cpu: ${cpuValue}%`);
-              return {
-                id: container.id,
-                cpu_percent: Number(cpuValue) || 0,
-                mem_usage: stats.mem_usage ?? stats.MemoryUsage ?? stats.memory ?? "—",
-              };
-            })
-            .catch((err) => {
-              console.error(`Stats fetch error for ${container.id}:`, err);
-              return null;
-            })
-        );
+        // Fetch stats for ALL containers
+        const statsPromises = mapped.map(async (container) => {
+          const statsCacheKey = `container_stats_${container.id}`;
+          const cachedStats = containerCache.get(statsCacheKey);
+          
+          if (cachedStats) {
+            return cachedStats;
+          }
+          
+          try {
+            const res = await fetch(`${API_BASE_URL}/containers/${container.id}/stats`);
+            const stats = res.ok ? await res.json() : null;
+            
+            if (!stats) return null;
+            
+            // CPU value comes as decimal multiply by 100 to get percentage
+            const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
+            const cpuValue = rawCpu < 10 ? rawCpu * 100 : rawCpu;
+            
+            const result = {
+              id: container.id,
+              cpu_percent: Number(cpuValue) || 0,
+              mem_usage: stats.mem_usage ?? stats.MemoryUsage ?? stats.memory ?? "—",
+            };
+            
+            containerCache.set(statsCacheKey, result);
+            return result;
+          } catch (err) {
+            console.error(`Stats fetch error for ${container.id}:`, err);
+            return null;
+          }
+        });
 
         const statsResults = await Promise.all(statsPromises);
 
@@ -75,14 +121,23 @@ export default function Dashboard() {
           setContainers(updated);
         }
 
-        // Fetch events 
-        const evRes = await fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" });
-        if (evRes.ok) {
-          const evData = await evRes.json();
-          if (mounted) setEvents(Array.isArray(evData) ? evData : []);
+        // Fetch events
+        const eventsCacheKey = 'dashboard_events';
+        const cachedEvents = eventCache.get(eventsCacheKey);
+        
+        if (cachedEvents) {
+          if (mounted) setEvents(Array.isArray(cachedEvents) ? cachedEvents : []);
         } else {
-          // 404 or other error / clear events
-          if (mounted) setEvents([]);
+          const evRes = await fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" });
+          if (evRes.ok) {
+            const evData = await evRes.json();
+            eventCache.set(eventsCacheKey, evData);
+            if (mounted) setEvents(Array.isArray(evData) ? evData : []);
+          } else {
+            // 404 or other error / clear events
+            eventCache.set(eventsCacheKey, []);
+            if (mounted) setEvents([]);
+          }
         }
       } catch (e) {
         console.error("pollAllData error:", e);
@@ -100,22 +155,42 @@ export default function Dashboard() {
     };
   }, []);
 
-  // CPU TREND FROM SELECTED CORES
+    // CPU TREND FROM RING BUFFER
   const cpuTrendSeries = useMemo(() => {
-    const labels = ["t-5", "t-4", "t-3", "t-2", "t-1", "now"];
-    const cpuPerCore = system?.cpu?.per_core || [];
-
-    return labels.map((lbl, idx) => {
-      const point = { time: lbl };
-      cpuPerCore.forEach((coreValue, coreIdx) => {
-        if (!selectedCores[coreIdx]) return;
-        const base = Math.max(0, Math.round(coreValue || 0));
-        const factor = 0.5 + (idx / (labels.length - 1)) * 0.6;
-        point[`Core ${coreIdx}`] = Math.min(100, Math.round(base * factor));
+    if (cpuCoreHistory && Object.keys(cpuCoreHistory).length > 0) {
+      const coreKeys = Object.keys(cpuCoreHistory).filter(coreIdx => selectedCores[coreIdx]);
+      
+      if (coreKeys.length === 0) return [];
+      
+      const maxLength = Math.max(...coreKeys.map(coreIdx => cpuCoreHistory[coreIdx].length));
+      
+      const labels = [];
+      for (let i = 0; i < maxLength && i < 50; i++) { 
+        labels.push(`t-${maxLength - i - 1}`);
+      }
+      
+      
+      return labels.map((label, idx) => {
+        const point = { time: label };
+        
+        coreKeys.forEach(coreIdx => {
+          const coreData = cpuCoreHistory[coreIdx];
+          const dataIndex = coreData.length - maxLength + idx;
+          
+          if (dataIndex >= 0 && dataIndex < coreData.length) {
+            point[`Core ${coreIdx}`] = coreData[dataIndex].value;
+          } else {
+            point[`Core ${coreIdx}`] = 0;
+          }
+        });
+        
+        return point;
       });
-      return point;
-    });
-  }, [system, selectedCores]);
+    }
+    
+    
+    return [];
+  }, [system, selectedCores, cpuCoreHistory]);
 
   const memPct = useMemo(() => {
     if (!system) return 0;

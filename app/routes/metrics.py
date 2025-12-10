@@ -5,7 +5,7 @@ import docker
 from docker.errors import NotFound
 import psutil
 from flask import Blueprint, jsonify
-from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics
+from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics, addSystemMetrics
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
 docker_client = docker.from_env()
@@ -114,22 +114,24 @@ def system_metrics():
         used_bytes = mem.used
         limit_bytes = mem.total
 
-        return jsonify(
-            {
-                "load": [load1, load5, load15],
-                "uptime": uptime_str,
-                "total_processes": total_procs,
-                "running": running,
-                "cpu": {
-                    "total_percent": total_cpu,
-                    "per_core": per_core,
-                },
-                "memory": {
-                    "used_bytes": used_bytes,
-                    "limit_bytes": limit_bytes,
-                },
-            }
-        )
+        system_data = {
+            "load": [load1, load5, load15],
+            "uptime": uptime_str,
+            "total_processes": total_procs,
+            "running": running,
+            "cpu": {
+                "total_percent": total_cpu,
+                "per_core": per_core,
+            },
+            "memory": {
+                "used_bytes": used_bytes,
+                "limit_bytes": limit_bytes,
+            },
+        }
+
+        addSystemMetrics(system_data)
+
+        return jsonify(system_data)
     except Exception as e:
         logger.error(f"Error fetching system metrics: {e}")
         return jsonify({
@@ -240,6 +242,28 @@ def latest_container_metrics(container_id):
             "error": "Unexpected error occurred",
             "message": "Failed to retreive container stats",
         }), 500
+
+# ---------------- SYSTEM METRICS HISTORY ----------------
+@metrics_bp.route("/system/metrics/history")
+def system_metrics_history():
+    try:
+        from app.utils.ringBuffer import getSystemMetricsHistory
+        history = getSystemMetricsHistory()
+        return jsonify(history)
+    except Exception as e:
+        logger.error(f"Error retrieving system metrics history: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ---------------- LATEST SYSTEM METRICS ----------------
+@metrics_bp.route("/system/metrics/latest")
+def latest_system_metrics():
+    try:
+        from app.utils.ringBuffer import getLatestSystemMetrics
+        latest = getLatestSystemMetrics()
+        return jsonify(latest)
+    except Exception as e:
+        logger.error(f"Error retrieving latest system metrics: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # ---------------- CONTAINER LOGS ----------------
 @metrics_bp.route("/containers/<container_id>/logs")

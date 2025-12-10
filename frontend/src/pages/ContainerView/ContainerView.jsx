@@ -10,7 +10,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { API_BASE_URL } from "../../config"; 
+import { API_BASE_URL } from "../../config";
+import { containerCache } from "../../utils/cache"; 
 
 export default function ContainerView() {
   const { id } = useParams(); // from route /containers/:id
@@ -33,6 +34,16 @@ export default function ContainerView() {
     const TOAST_ID= "status-error-container-view";
 
     const fetchStats = () => {
+      const statsCacheKey = `container_stats_${id}`;
+      const cachedStats = containerCache.get(statsCacheKey);
+      
+      if (cachedStats) {
+        setStatsError("");
+        setStats(cachedStats);
+        setStatsLoading(false);
+        return;
+      }
+      
       fetch(`${API_BASE_URL}/containers/${id}/stats`)
         .then(async (res) => {
           var payload = await res.json();
@@ -71,6 +82,7 @@ export default function ContainerView() {
           return payload;
         })
         .then((data) => {
+          containerCache.set(statsCacheKey, data);
           setStatsError("");
           setStats(data);
           setStatsLoading(false);
@@ -91,12 +103,26 @@ export default function ContainerView() {
   // --------- FETCH STORED METRICS ----------
   useEffect(() => {
     const fetchHistoricalMetrics = () => {
+      const historyCacheKey = `container_history_${id}`;
+      const cachedHistory = containerCache.get(historyCacheKey);
+      
+      if (cachedHistory) {
+        const cpuHistoryData = (cachedHistory.cpuHistory || []).map(item => ({
+          time: new Date(item.timestamp).toLocaleTimeString(),
+          value: item.value
+        }));
+        setCpuHistory(cpuHistoryData);
+        return;
+      }
+      
       fetch(`${API_BASE_URL}/containers/${id}/metrics/history`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch stored metrics");
           return res.json();
         })
         .then((data) => {
+          containerCache.set(historyCacheKey, data);
+          
           const cpuHistoryData = (data.cpuHistory || []).map(item => ({
             time: new Date(item.timestamp).toLocaleTimeString(),
             value: item.value
@@ -119,6 +145,16 @@ export default function ContainerView() {
   useEffect(() => {
     if (activeTab !== "logs") return;
 
+    const logsCacheKey = `container_logs_${id}`;
+    const cachedLogs = containerCache.get(logsCacheKey);
+    
+    if (cachedLogs) {
+      setLogsLoading(false);
+      setLogsError("");
+      setLogs(Array.isArray(cachedLogs) ? cachedLogs : []);
+      return;
+    }
+
     setLogsLoading(true);
     setLogsError("");
 
@@ -128,6 +164,8 @@ export default function ContainerView() {
         return res.json();
       })
       .then((data) => {
+        containerCache.set(logsCacheKey, data.logs);
+        
         setLogsLoading(false);
         setLogsError("");
         setLogs(Array.isArray(data.logs) ? data.logs : []);

@@ -39,9 +39,14 @@ class RingBuffer:
             return len(self.buffer) == self.size
 
 containerMetricsStorage = defaultdict(dict)
+systemMetricsStorage = {
+    'cpuCoreBuffers': {},
+    'memoryBuffer': None
+}
 
 
 DEFAULT_BUFFER_SIZE = 360
+SYSTEM_DEFAULT_BUFFER_SIZE = 360
 
 def initializeContainerBuffers(container_id, buffer_size=DEFAULT_BUFFER_SIZE):
     if container_id not in containerMetricsStorage:
@@ -49,6 +54,14 @@ def initializeContainerBuffers(container_id, buffer_size=DEFAULT_BUFFER_SIZE):
             'cpuBuffer': RingBuffer(buffer_size),
             'memoryBuffer': RingBuffer(buffer_size)
         }
+
+def initializeSystemBuffers(num_cores, buffer_size=SYSTEM_DEFAULT_BUFFER_SIZE):
+    for core_idx in range(num_cores):
+        if core_idx not in systemMetricsStorage['cpuCoreBuffers']:
+            systemMetricsStorage['cpuCoreBuffers'][core_idx] = RingBuffer(buffer_size)
+    
+    if systemMetricsStorage['memoryBuffer'] is None:
+        systemMetricsStorage['memoryBuffer'] = RingBuffer(buffer_size)
 
 def addContainerMetrics(container_id, metrics):
     if container_id not in containerMetricsStorage:
@@ -73,6 +86,30 @@ def addContainerMetrics(container_id, metrics):
             'limitBytes': metrics['mem_limit_bytes']
         })
 
+def addSystemMetrics(system_data):
+    cpu_per_core = system_data.get('cpu', {}).get('per_core', [])
+    initializeSystemBuffers(len(cpu_per_core))
+    
+    for core_idx, core_value in enumerate(cpu_per_core):
+        if isinstance(core_value, (int, float)):
+            systemMetricsStorage['cpuCoreBuffers'][core_idx].push({
+                'timestamp': datetime.now().isoformat(),
+                'value': core_value
+            })
+    
+    memory_data = system_data.get('memory', {})
+    used_bytes = memory_data.get('used_bytes', 0)
+    limit_bytes = memory_data.get('limit_bytes', 0)
+    
+    if isinstance(used_bytes, (int, float)) and isinstance(limit_bytes, (int, float)):
+        memory_percent = (used_bytes / limit_bytes) * 100 if limit_bytes > 0 else 0
+        systemMetricsStorage['memoryBuffer'].push({
+            'timestamp': datetime.now().isoformat(),
+            'value': memory_percent,
+            'usageBytes': used_bytes,
+            'limitBytes': limit_bytes
+        })
+
 def getStoredMetrics(container_id):
     if container_id not in containerMetricsStorage:
         return {'cpuHistory': [], 'memoryHistory': []}
@@ -82,6 +119,20 @@ def getStoredMetrics(container_id):
         'memoryHistory': containerMetricsStorage[container_id]['memoryBuffer'].getAll()
     }
 
+def getSystemMetricsHistory():
+    result = {
+        'cpuCoreHistories': {},
+        'memoryHistory': []
+    }
+    
+    for core_idx, buffer in systemMetricsStorage['cpuCoreBuffers'].items():
+        result['cpuCoreHistories'][core_idx] = buffer.getAll()
+    
+    if systemMetricsStorage['memoryBuffer']:
+        result['memoryHistory'] = systemMetricsStorage['memoryBuffer'].getAll()
+    
+    return result
+
 def getLatestContainerMetrics(container_id):
     if container_id not in containerMetricsStorage:
         return {'cpu': None, 'memory': None}
@@ -90,3 +141,17 @@ def getLatestContainerMetrics(container_id):
         'cpu': containerMetricsStorage[container_id]['cpuBuffer'].getLast(),
         'memory': containerMetricsStorage[container_id]['memoryBuffer'].getLast()
     }
+
+def getLatestSystemMetrics():
+    result = {
+        'cpuCores': {},
+        'memory': None
+    }
+    
+    for core_idx, buffer in systemMetricsStorage['cpuCoreBuffers'].items():
+        result['cpuCores'][core_idx] = buffer.getLast()
+    
+    if systemMetricsStorage['memoryBuffer']:
+        result['memory'] = systemMetricsStorage['memoryBuffer'].getLast()
+    
+    return result
