@@ -207,11 +207,44 @@ def container_processes(container_id):
         #map the titles to each process info
         pid_idx = -1
         cput_idx = -1
-        mem_idx = -1
+        time_idx = -1 #mem is not in docker top by default
         cmd_idx = -1
 
         #find indexes
+        for i, title in enumerate(titles):
+            title_lower = title.lower()
+            if title_lower == "pid":
+                pid_idx = i
+            elif title_lower in ("%c", "cpu%"):
+                cpu_idx = i
+            elif title_lower  == "time":
+                time_idx = i
+            elif title_lower in ("cmd", "command"):
+                cmd_idx = i
 
-    except docker.errors.NotFound:
-        return jsonify({"error": "Container not found."}), 404
+        processes = []
 
+        for proc_row in processes_total:
+            proc_info = {
+                "pid": proc_row[pid_idx] if pid_idx >= 0 and len(proc_row) > pid_idx else "--",
+                "cpu_percent": proc_row[cpu_idx] if cpu_idx >= 0 and len(proc_row) > cpu_idx else "--",
+                "mem_percent": "--",
+                "state": "Running",
+                "time": proc_row[time_idx] if time_idx >=0 and len(proc_row) > time_idx else "--",
+                "command": proc_row[cmd_idx] if cmd_idx >=0 and len(proc_row) > cmd_idx else "--",
+            }
+            processes.append(proc_info)
+
+        return jsonify({
+            "container":container.name,
+            "status": container.status,
+            "processes": processes,
+        }), 200
+        
+    except docker.errors.NotFound as e:
+        return jsonify({"error": "Container not found",
+                        "container_id": container_id}), 410
+    
+    except docker.errors.Exception as e:
+        return jsonify({"error": "Unexpected error occurred",
+                        "message": "Failed to retrieve container processes."}), 500
