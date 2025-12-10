@@ -182,3 +182,36 @@ def container_logs(container_id):
             "logs": lines,
         }
     )
+
+# ---------------- FETCH PROCESSES ----------------
+@metrics_bp.route("/containers/<container_id>/processes")
+def container_processes(container_id):
+    """Return the list of processes running inside a container"""
+    try:
+        container = docker_client.containers.get(container_id)
+        #verify it is running
+        container.reload()
+        if container.status != "running":
+            return jsonify({
+                "container": container.name,
+                "processes": [],
+                "error": "Container is not currently running."
+            }), 200 
+        
+        #execute top inside the container
+
+        top_data = container.top()
+        titles = top_data.get("Titles", [])
+        processes_total = top_data.get("Processes", [])
+
+        #map the titles to each process info
+        pid_idx = -1
+        cput_idx = -1
+        mem_idx = -1
+        cmd_idx = -1
+
+        #find indexes
+
+    except docker.errors.NotFound:
+        return jsonify({"error": "Container not found."}), 404
+
