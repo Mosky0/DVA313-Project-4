@@ -361,7 +361,7 @@ export default function Dashboard() {
                     <div className="w-12 text-xs text-gray-600">CPU {i}</div>
                     <div className="flex-1">
                       <div className="bg-gray-100 rounded h-3 overflow-hidden">
-                        <div className="h-3 bg-[#2496ED]" style={{ width: `${displayValue}%` }} />
+                        <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
                       </div>
                     </div>
                     <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
