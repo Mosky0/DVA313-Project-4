@@ -171,18 +171,22 @@ export default function Dashboard() {
       
       const maxLength = Math.max(...coreKeys.map(coreIdx => cpuCoreHistory[coreIdx].length));
       
-      const labels = [];
-      for (let i = 0; i < maxLength && i < 50; i++) { 
-        labels.push(`t-${maxLength - i - 1}`);
-      }
+      const refCore = coreKeys.length > 0 ? coreKeys[0] : null;
+      if (!refCore) return [];
       
+      const coreData = cpuCoreHistory[refCore];
+      const startIndex = Math.max(0, coreData.length - 50);
       
-      return labels.map((label, idx) => {
-        const point = { time: label };
+      return coreData.slice(startIndex).map((entry, idx) => {
+        const point = { 
+          time: entry.timestamp 
+            ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+            : `Point ${idx}`
+        };
         
         coreKeys.forEach(coreIdx => {
           const coreData = cpuCoreHistory[coreIdx];
-          const dataIndex = coreData.length - maxLength + idx;
+          const dataIndex = startIndex + idx;
           
           if (dataIndex >= 0 && dataIndex < coreData.length) {
             point[`Core ${coreIdx}`] = coreData[dataIndex].value;
@@ -214,7 +218,9 @@ export default function Dashboard() {
     const startIndex = systemMemoryHistory.length - maxLength;
     
     return systemMemoryHistory.slice(startIndex).map((entry, idx) => ({
-      time: `t-${maxLength - idx - 1}`,
+      time: entry.timestamp 
+        ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+        : `t-${maxLength - idx - 1}`,
       value: entry.value
     }));
   }, [systemMemoryHistory]);
@@ -373,7 +379,7 @@ export default function Dashboard() {
               <LineChart data={cpuTrendSeries}>
                 <XAxis dataKey="time" stroke="#888" />
                 <YAxis stroke="#888" domain={[0, 100]} />
-                <Tooltip />
+                <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
                 <Legend />
                 {cpuPerCore.map((_, coreIdx) =>
                   selectedCores[coreIdx] ? (
