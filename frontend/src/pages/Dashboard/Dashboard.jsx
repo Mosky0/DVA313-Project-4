@@ -14,6 +14,7 @@ export default function Dashboard() {
   const [events, setEvents] = useState([]);
   const [loadingSys, setLoadingSys] = useState(true);
   const [selectedCores, setSelectedCores] = useState({});
+  const [selectAllCores, setSelectAllCores] = useState(false);
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
 
@@ -288,6 +289,19 @@ export default function Dashboard() {
     }));
   }, []);
 
+  const handleSelectAll = useCallback(() => {
+    const newSelectAll = !selectAllCores;
+    setSelectAllCores(newSelectAll);
+    
+    const newSelectedCores = {};
+    if (system?.cpu?.per_core) {
+      system.cpu.per_core.forEach((_, i) => {
+        newSelectedCores[i] = newSelectAll;
+      });
+    }
+    setSelectedCores(newSelectedCores);
+  }, [selectAllCores, system?.cpu?.per_core]);
+
   if (loadingSys) {
     return (
       <div className="p-6">
@@ -345,6 +359,17 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl shadow p-4">
           <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
           <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectAllCores}
+                onChange={handleSelectAll}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <div className="w-12 text-xs text-gray-600">All Cores</div>
+              <div className="flex-1"></div>
+            </div>
+            
             {cpuPerCore.length ? (
               cpuPerCore.map((v, i) => {
                 const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0 
