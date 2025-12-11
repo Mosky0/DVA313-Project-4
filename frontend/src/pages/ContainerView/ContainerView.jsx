@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { toast } from "react-toastify";
+import { useParams, useLocation } from "react-router-dom";
 import {
   LineChart,
   Line,
@@ -9,23 +10,19 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { API_BASE_URL } from "../../config"; // adjust path if needed
-import {
-  initializeContainerBuffers,
-  addContainerMetrics,
-  getStoredMetrics,
-  DEFAULT_BUFFER_SIZE,
-} from "../../utils/ringBuffer";
+import { API_BASE_URL } from "../../config";
+import { containerCache } from "../../utils/cache"; 
 
 export default function ContainerView() {
   const { id } = useParams(); // from route /containers/:id
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("details");
-
+  const containerName = location.state?.name || "";
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
 
-  const [cpuHistory, setCpuHistory] = useState([]); // for chart
+  const [cpuHistory, setCpuHistory] = useState([]); 
 
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -38,37 +35,53 @@ export default function ContainerView() {
   // --------- FETCH STATS (poll every 5s) ----------
   useEffect(() => {
     let intervalId;
+    const TOAST_ID= "status-error-container-view";
+    const POL_TIME_MS = 3000;
 
-    const fetchStats = () => {
-      initializeContainerBuffers(id, DEFAULT_BUFFER_SIZE);
-
+    const fetchStats = async () => {
+      const statsCacheKey = `container_stats_${id}`;
+      const cachedStats = containerCache.get(statsCacheKey);
+      
+      if (cachedStats) {
+        setStatsError("");
+        setStats(cachedStats);
+        setStatsLoading(false);
+      }
+      
       fetch(`${API_BASE_URL}/containers/${id}/stats`)
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed to fetch stats");
-          return res.json();
+        .then(async (res) => {
+          var payload = await res.json();
+          if (res.status === 410) {
+            if (!toast.isActive(TOAST_ID)) {
+              toast.error(payload?.message ?? "Container has been removed from environment", { toastId: TOAST_ID, autoClose: 5000 });
+            } 
+            setStats(payload);
+            
+            setStatsError("Container deleted or removed.");
+            setStatsLoading(false);
+
+            clearInterval(intervalId)
+            return payload;
+          }
+          else if (!res.ok) {
+            const message = payload.message || "Failed to fetch container stats";
+
+            if (!toast.isActive(TOAST_ID)) {
+              toast.error(message, { toastId: TOAST_ID, autoClose: 5000 });
+            }
+
+            setStatsError("No data from Docker — metrics unavailable.");
+            setStatsLoading(false);
+            setStats(payload);
+            return payload;
+          }
+          return payload;
         })
         .then((data) => {
+          containerCache.set(statsCacheKey, data);
           setStatsError("");
           setStats(data);
           setStatsLoading(false);
-
-          addContainerMetrics(id, data); // Store metrics in the ring buffer
-
-          // Get updated history from ring buffer
-          const metrics = getStoredMetrics(id);
-
-          // Debug logging
-          console.log("Ring buffer metrics:", metrics);
-
-          const updatedCpuHistory = metrics?.cpuHistory || [];
-          setCpuHistory(
-            updatedCpuHistory.map((item) => ({
-              time: item?.timestamp
-                ? new Date(item.timestamp).toLocaleTimeString()
-                : "",
-              value: item?.value || 0,
-            }))
-          );
         })
         .catch((err) => {
           console.error(err);
@@ -78,14 +91,65 @@ export default function ContainerView() {
     };
 
     fetchStats();
-    intervalId = setInterval(fetchStats, 5000);
+    intervalId = setInterval(fetchStats, POL_TIME_MS);
 
     return () => clearInterval(intervalId);
   }, [id]);
 
+  // --------- FETCH STORED METRICS ----------
+  useEffect(() => {
+    const fetchHistoricalMetrics = () => {
+      const historyCacheKey = `container_history_${id}`;
+      const cachedHistory = containerCache.get(historyCacheKey);
+      
+      if (cachedHistory) {
+        const cpuHistoryData = (cachedHistory.cpuHistory || []).map(item => ({
+          time: new Date(item.timestamp).toLocaleTimeString(),
+          value: item.value
+        }));
+        setCpuHistory(cpuHistoryData);
+        return;
+      }
+      
+      fetch(`${API_BASE_URL}/containers/${id}/metrics/history`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch stored metrics");
+          return res.json();
+        })
+        .then((data) => {
+          containerCache.set(historyCacheKey, data);
+          
+          const cpuHistoryData = (data.cpuHistory || []).map(item => ({
+            time: new Date(item.timestamp).toLocaleTimeString(),
+            value: item.value
+          }));
+          setCpuHistory(cpuHistoryData);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch stored metrics:", err);
+        });
+    };
+
+    fetchHistoricalMetrics();
+    const interval = setInterval(fetchHistoricalMetrics, 1000);
+
+    return () => clearInterval(interval);
+  }, [id]);
+
+
   // --------- FETCH LOGS WHEN TAB = "logs" ----------
   useEffect(() => {
     if (activeTab !== "logs") return;
+
+    const logsCacheKey = `container_logs_${id}`;
+    const cachedLogs = containerCache.get(logsCacheKey);
+    
+    if (cachedLogs) {
+      setLogsLoading(false);
+      setLogsError("");
+      setLogs(Array.isArray(cachedLogs) ? cachedLogs : []);
+      return;
+    }
 
     setLogsLoading(true);
     setLogsError("");
@@ -96,6 +160,8 @@ export default function ContainerView() {
         return res.json();
       })
       .then((data) => {
+        containerCache.set(logsCacheKey, data.logs);
+        
         setLogsLoading(false);
         setLogsError("");
         setLogs(Array.isArray(data.logs) ? data.logs : []);
@@ -416,5 +482,6 @@ function formatStatus(status) {
   const s = status.toLowerCase();
   if (s === "running") return "Running";
   if (s === "exited" || s === "stopped") return "Stopped";
+  if (s === "deleted") return "Deleted";
   return status.charAt(0).toUpperCase() + status.slice(1);
 }

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FaChevronUp, FaChevronDown, FaChevronRight } from "react-icons/fa";
 import { API_BASE_URL } from "../../config"; // adjust path if needed
+import { containerCache } from "../../utils/cache";
 
 const filterOptions = ["All", "Running", "Stopped"];
 
@@ -23,22 +24,75 @@ export default function Containers() {
     setLoading(true);
     setError("");
 
-    fetch(`${API_BASE_URL}/containers`)
-      .then((res) => {
+    const containersCacheKey = 'containers_list';
+    const cachedContainers = containerCache.get(containersCacheKey);
+    
+    const fetchContainers = cachedContainers ? 
+      Promise.resolve(cachedContainers) : 
+      fetch(`${API_BASE_URL}/containers`).then(res => {
         if (!res.ok) throw new Error("Failed to load containers");
         return res.json();
-      })
+      });
+
+    fetchContainers
       .then((data) => {
+        if (!cachedContainers) {
+          containerCache.set(containersCacheKey, data);
+        }
        
         const mapped = data.map((c) => ({
           id: c.id,
           name: c.name,
-          cpu: c.cpu_percent, 
-          mem: c.mem_usage, 
+          cpu: "-", 
+          mem: "-", 
           status: normalizeStatus(c.status),
         }));
         setRows(mapped);
         setLoading(false);
+
+        // Fetch container metrics
+        mapped.forEach(container => {
+          const statsCacheKey = `container_stats_${container.id}`;
+          const cachedStats = containerCache.get(statsCacheKey);
+          
+          if (cachedStats) {
+            setRows(prevRows => 
+              prevRows.map(row => 
+                row.id === container.id 
+                  ? { 
+                      ...row, 
+                      cpu: cachedStats.cpu_percent !== undefined ? `${cachedStats.cpu_percent.toFixed(2)}%` : "N/A",
+                      mem: cachedStats.mem_usage || "N/A"
+                    } 
+                  : row
+              )
+            );
+          } else {
+            fetch(`${API_BASE_URL}/containers/${container.id}/stats`)
+              .then(res => {
+                if (!res.ok) throw new Error(`Failed to load stats for ${container.id}`);
+                return res.json();
+              })
+              .then(stats => {
+                containerCache.set(statsCacheKey, stats);
+                
+                setRows(prevRows => 
+                  prevRows.map(row => 
+                    row.id === container.id 
+                      ? { 
+                          ...row, 
+                          cpu: stats.cpu_percent !== undefined ? `${stats.cpu_percent.toFixed(2)}%` : "N/A",
+                          mem: stats.mem_usage || "N/A"
+                        } 
+                      : row
+                  )
+                );
+              })
+              .catch(err => {
+                console.error(`Failed to fetch stats for container ${container.id}:`, err);
+              });
+          }
+        });
       })
       .catch((err) => {
         console.error(err);
@@ -191,8 +245,8 @@ export default function Containers() {
               <tr key={row.id} className="border-b hover:bg-gray-100">
                 <td className="py-3 px-4">{row.id}</td>
                 <td className="py-3 px-4">{row.name}</td>
-                <td className="py-3 px-4">{row.cpu}%</td>
-                <td className="py-3 px-4">{row.mem}%</td>
+                <td className="py-3 px-4">{row.cpu}</td>
+                <td className="py-3 px-4">{row.mem}</td>
                 <td className="py-3 px-4">{row.status}</td>
 
                 <td className="py-3 px-4 text-right">
