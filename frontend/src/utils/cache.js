@@ -53,9 +53,9 @@ class Cache {
   }
 }
 
-// Currently 60 seconds ttl
-export const systemCache = new Cache(60000);
-export const containerCache = new Cache(60000); 
-export const eventCache = new Cache(60000); 
+// Currently 20 seconds ttl
+export const systemCache = new Cache(20000);
+export const containerCache = new Cache(20000); 
+export const eventCache = new Cache(20000);
 
 export default Cache;

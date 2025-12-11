@@ -14,7 +14,9 @@ export default function Dashboard() {
   const [events, setEvents] = useState([]);
   const [loadingSys, setLoadingSys] = useState(true);
   const [selectedCores, setSelectedCores] = useState({});
+  const [selectAllCores, setSelectAllCores] = useState(false);
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
+  const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
 
   // SINGLE UNIFIED POLLing effect for system, containers, stats, events
   useEffect(() => {
@@ -41,13 +43,19 @@ export default function Dashboard() {
         const cachedHistory = systemCache.get(historyCacheKey);
         
         if (cachedHistory) {
-          if (mounted) setCPUCoreHistory(cachedHistory.cpuCoreHistories || {});
+          if (mounted) {
+            setCPUCoreHistory(cachedHistory.cpuCoreHistories || {});
+            setSystemMemoryHistory(cachedHistory.memoryHistory || []);
+          }
         } else {
           const historyRes = await fetch(`${API_BASE_URL}/system/metrics/history`);
           const historyData = historyRes.ok ? await historyRes.json() : null;
           if (historyData) {
             systemCache.set(historyCacheKey, historyData);
-            if (mounted) setCPUCoreHistory(historyData.cpuCoreHistories || {});
+            if (mounted) {
+              setCPUCoreHistory(historyData.cpuCoreHistories || {});
+              setSystemMemoryHistory(historyData.memoryHistory || []);
+            }
           }
         }
 
@@ -164,18 +172,22 @@ export default function Dashboard() {
       
       const maxLength = Math.max(...coreKeys.map(coreIdx => cpuCoreHistory[coreIdx].length));
       
-      const labels = [];
-      for (let i = 0; i < maxLength && i < 50; i++) { 
-        labels.push(`t-${maxLength - i - 1}`);
-      }
+      const refCore = coreKeys.length > 0 ? coreKeys[0] : null;
+      if (!refCore) return [];
       
+      const coreData = cpuCoreHistory[refCore];
+      const startIndex = Math.max(0, coreData.length - 50);
       
-      return labels.map((label, idx) => {
-        const point = { time: label };
+      return coreData.slice(startIndex).map((entry, idx) => {
+        const point = { 
+          time: entry.timestamp 
+            ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+            : `Point ${idx}`
+        };
         
         coreKeys.forEach(coreIdx => {
           const coreData = cpuCoreHistory[coreIdx];
-          const dataIndex = coreData.length - maxLength + idx;
+          const dataIndex = startIndex + idx;
           
           if (dataIndex >= 0 && dataIndex < coreData.length) {
             point[`Core ${coreIdx}`] = coreData[dataIndex].value;
@@ -199,6 +211,20 @@ export default function Dashboard() {
     if (!limit) return 0;
     return Math.round((used / limit) * 100);
   }, [system]);
+
+  const memoryTrendSeries = useMemo(() => {
+    if (!systemMemoryHistory || systemMemoryHistory.length === 0) return [];
+    
+    const maxLength = Math.min(systemMemoryHistory.length, 50);
+    const startIndex = systemMemoryHistory.length - maxLength;
+    
+    return systemMemoryHistory.slice(startIndex).map((entry, idx) => ({
+      time: entry.timestamp 
+        ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+        : `t-${maxLength - idx - 1}`,
+      value: entry.value
+    }));
+  }, [systemMemoryHistory]);
 
   const derivedAlerts = useMemo(() => {
     const parseMemPercent = (memStr) => {
@@ -263,6 +289,19 @@ export default function Dashboard() {
     }));
   }, []);
 
+  const handleSelectAll = useCallback(() => {
+    const newSelectAll = !selectAllCores;
+    setSelectAllCores(newSelectAll);
+    
+    const newSelectedCores = {};
+    if (system?.cpu?.per_core) {
+      system.cpu.per_core.forEach((_, i) => {
+        newSelectedCores[i] = newSelectAll;
+      });
+    }
+    setSelectedCores(newSelectedCores);
+  }, [selectAllCores, system?.cpu?.per_core]);
+
   if (loadingSys) {
     return (
       <div className="p-6">
@@ -277,8 +316,11 @@ export default function Dashboard() {
   const uptime = system?.uptime || "N/A";
   const totalProcesses = system?.total_processes ?? 0;
   const running = system?.running ?? 0;
-  const cpuTotal = system?.cpu?.total_percent ?? 0;
   const cpuPerCore = system?.cpu?.per_core || [];
+  
+  const cpuAvg = cpuPerCore.length > 0 
+    ? cpuPerCore.reduce((sum, core) => sum + core, 0) / cpuPerCore.length
+    : 0;
 
   return (
     <div className="p-6 space-y-6">
@@ -295,7 +337,7 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow flex items-center">
-          <CircleMetric value={Math.round(cpuTotal)} label="CPU Avg" />
+          <CircleMetric value={Math.round(cpuAvg)} label="CPU Avg" />
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow">
@@ -320,24 +362,40 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl shadow p-4">
           <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
           <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectAllCores}
+                onChange={handleSelectAll}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <div className="w-12 text-xs text-gray-600">All Cores</div>
+              <div className="flex-1"></div>
+            </div>
+            
             {cpuPerCore.length ? (
-              cpuPerCore.map((v, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={!!selectedCores[i]}
-                    onChange={() => handleCoreToggle(i)}
-                    className="w-4 h-4 cursor-pointer"
-                  />
-                  <div className="w-12 text-xs text-gray-600">CPU {i}</div>
-                  <div className="flex-1">
-                    <div className="bg-gray-100 rounded h-3 overflow-hidden">
-                      <div className="h-3 bg-[#2496ED]" style={{ width: `${v}%` }} />
+              cpuPerCore.map((v, i) => {
+                const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0 
+                  ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value 
+                  : v;
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedCores[i]}
+                      onChange={() => handleCoreToggle(i)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                    <div className="w-12 text-xs text-gray-600">CPU {i}</div>
+                    <div className="flex-1">
+                      <div className="bg-gray-100 rounded h-3 overflow-hidden">
+                        <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
+                      </div>
                     </div>
+                    <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
                   </div>
-                  <div className="w-12 text-right text-xs font-medium">{Math.round(v)}%</div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-xs text-gray-500">No per-core data.</div>
             )}
@@ -354,7 +412,7 @@ export default function Dashboard() {
               <LineChart data={cpuTrendSeries}>
                 <XAxis dataKey="time" stroke="#888" />
                 <YAxis stroke="#888" domain={[0, 100]} />
-                <Tooltip />
+                <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
                 <Legend />
                 {cpuPerCore.map((_, coreIdx) =>
                   selectedCores[coreIdx] ? (
@@ -378,15 +436,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow p-4">
           <ChartCard
-            title="Memory trend (sample)"
-            data={[
-              { time: "t-6", value: 40 },
-              { time: "t-5", value: 42 },
-              { time: "t-4", value: 41 },
-              { time: "t-3", value: 47 },
-              { time: "t-2", value: 44 },
-              { time: "now", value: 50 },
-            ]}
+            title="System Memory trend"
+            data={memoryTrendSeries}
             type="area"
           />
         </div>
