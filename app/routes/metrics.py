@@ -200,43 +200,59 @@ def container_processes(container_id):
         
         #execute top inside the container
 
-        top_data = container.top()
+        top_data = container.top(ps_args="aux")
         titles = top_data.get("Titles", [])
         processes_total = top_data.get("Processes", [])
 
         #map the titles to each process info
         pid_idx = -1
         cpu_idx = -1
-        time_idx = -1 #mem is not in docker top by default
+        mem_idx = -1 
+        time_idx = -1 
+        stat_idx = -1
         cmd_idx = -1
 
         #find indexes
         for i, title in enumerate(titles):
-            title_lower = title.lower()
-            if title_lower == "pid":
+            title_upper = title.upper()
+            if title_upper == "PID":
                 pid_idx = i
-            elif title_lower in ("%c", "cpu%"):
+            elif title_upper in ["%CPU", "CPU"]:
                 cpu_idx = i
-            elif title_lower  == "time":
+            elif title_upper in ["%MEM", "MEM"]:
+                mem_idx = i
+            elif title_upper == "TIME":
                 time_idx = i
-            elif title_lower in ("cmd", "command"):
+            elif title_upper in ["STAT", "STATE", "S"]:
+                stat_idx = i
+            elif title_upper in ["CMD", "COMMAND"]:
                 cmd_idx = i
 
         processes = []
 
         for proc_row in processes_total:
-            proc_info = {
-                "pid": proc_row[pid_idx] if pid_idx >= 0 and len(proc_row) > pid_idx else "--",
-                "cpu_percent": proc_row[cpu_idx] if cpu_idx >= 0 and len(proc_row) > cpu_idx else "--",
-                "mem_percent": "--",
-                "state": "Running",
-                "time": proc_row[time_idx] if time_idx >=0 and len(proc_row) > time_idx else "--",
-                "command": proc_row[cmd_idx] if cmd_idx >=0 and len(proc_row) > cmd_idx else "--",
-            }
-            processes.append(proc_info)
+            try:
+                state = "R"  #Default: Running
+                if stat_idx >= 0 and len(proc_row) > stat_idx:
+                    state_raw = proc_row[stat_idx]
+                    #
+                    state = state_raw[0] if state_raw else "R"
+                
+                proc_info = {
+                    "pid": proc_row[pid_idx] if pid_idx >= 0 and len(proc_row) > pid_idx else "—",
+                    "cpu_percent": proc_row[cpu_idx] if cpu_idx >= 0 and len(proc_row) > cpu_idx else "—",
+                    "mem_percent": proc_row[mem_idx] if mem_idx >= 0 and len(proc_row) > mem_idx else "—",
+                    "state": state,
+                    "time": proc_row[time_idx] if time_idx >= 0 and len(proc_row) > time_idx else "—",
+                    "command": proc_row[cmd_idx] if cmd_idx >= 0 and len(proc_row) > cmd_idx else "—",
+                }
+                processes.append(proc_info)
+            except (IndexError, ValueError) as e:
+                print(f"Error parsing process row: {e}")
+                continue
 
         return jsonify({
-            "container":container.name,
+            "container": container.name,
             "status": container.status,
             "processes": processes,
         }), 200
