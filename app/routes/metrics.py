@@ -206,7 +206,7 @@ def container_processes(container_id):
 
         #map the titles to each process info
         pid_idx = -1
-        cput_idx = -1
+        cpu_idx = -1
         time_idx = -1 #mem is not in docker top by default
         cmd_idx = -1
 
