@@ -324,7 +324,7 @@ export default function ContainerView() {
 
           {/* Processes Table */}
           <div className="bg-white shadow rounded-xl p-6">
-            <p className="font-semibold mb-4 text-gray-700">Processes (top)</p>
+            <p className="font-semibold mb-4 text-gray-700">Processes</p>
 
             {/*Error in case there are*/}
             {processesError && (
@@ -338,47 +338,47 @@ export default function ContainerView() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="text-gray-600 border-b">
-                      <th className="py-2">PID</th>
-                      <th>CPU%</th>
-                      <th>MEM%</th>
-                      <th>STATE</th>
-                      <th>TIME+</th>
-                      <th>COMMAND</th>
+                    <tr className="text-gray-600 border-b bg-gray-50">
+                      <th className="py-3 px-3 text-center">PID</th>
+                      <th className="py-3 px-3 text-center">CPU%</th>
+                      <th className="py-3 px-3 text-center">MEM%</th>
+                      <th className="py-3 px-3 text-center">State</th>
+                      <th className="py-3 px-3 text-center">CPU Time</th>
+                      <th className="py-3 px-3 text-center">Command</th>
                     </tr>
                   </thead>
 
                   <tbody>
-                    {/*In case of no processes*/}
                     {processes.length === 0 ? (
                       <tr className="border-b text-sm">
-                        <td className="py-2" colSpan="6">
+                        <td className="py-2 text-center" colSpan="6">
                           <span className="text-gray-500">
                             No process data available
                           </span>
                         </td>
                       </tr>
                     ) : (
-                      //
                       processes.map((proc, idx) => (
                         <tr
                           key={idx}
                           className="border-b text-sm hover:bg-gray-50"
                         >
-                          <td className="py-2">{proc.pid || "—"}</td>
-                          <td>
+                          <td className="py-2 text-center">
+                            {proc.pid || "—"}
+                          </td>
+                          <td className="text-center">
                             {proc.cpu_percent != null
                               ? `${proc.cpu_percent}%`
                               : "—"}
                           </td>
-                          <td>
+                          <td className="text-center">
                             {proc.mem_percent != null
                               ? `${proc.mem_percent}%`
                               : "—"}
                           </td>
-                          <td>{proc.state || "—"}</td>
-                          <td>{proc.time || "—"}</td>
-                          <td className="truncate max-w-xs">
+                          <td className="text-center">{proc.state || "—"}</td>
+                          <td className="text-center">{proc.time || "—"}</td>
+                          <td className="truncate max-w-xs text-center">
                             {proc.command || "—"}
                           </td>
                         </tr>
