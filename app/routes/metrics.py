@@ -296,7 +296,6 @@ def container_logs(container_id):
             "message": "Failed to retrieve container logs",
         }), 500
 
-
 # ---------------- FETCH PROCESSES ----------------
 @metrics_bp.route("/containers/<container_id>/processes")
 def container_processes(container_id):
