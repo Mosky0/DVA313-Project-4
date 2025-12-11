@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config"; // make sure this exists
+import { containerCache } from "../../utils/cache";
 
 
 export default function Logs() {
@@ -32,7 +33,7 @@ export default function Logs() {
 
 
 
-  // Load containers list from backend
+  // Load containers list from backend with caching
   useEffect(() => {
     let isCancelled = false;
 
@@ -40,16 +41,27 @@ export default function Logs() {
       try {
         setLoadingContainers(true);
         setError("");
-        const res = await fetch(`${API_BASE_URL}/containers`);
+        
+        const containersCacheKey = 'logs_containers_list';
+        const cachedContainers = containerCache.get(containersCacheKey);
+        
+        let data;
+        if (cachedContainers) {
+          data = cachedContainers;
+        } else {
+          const res = await fetch(`${API_BASE_URL}/containers`);
 
-        console.log("Containers response status:", res.status);
+          console.log("Containers response status:", res.status);
 
-        if (!res.ok) {
-          throw new Error(`Failed to load containers: ${res.status}`);
+          if (!res.ok) {
+            throw new Error(`Failed to load containers: ${res.status}`);
+          }
+
+          data = await res.json(); // [{ id, name, status, image }]
+          console.log("Containers data:", data);
+          
+          containerCache.set(containersCacheKey, data);
         }
-
-        const data = await res.json(); // [{ id, name, status, image }]
-        console.log("Containers data:", data);
 
         if (!isCancelled) {
           setContainers(data);
@@ -92,6 +104,18 @@ export default function Logs() {
       try {
         setLoadingLogs(true);
         setError("");
+        
+        const logsCacheKey = `logs_container_${selectedContainer}`;
+        const cachedLogs = containerCache.get(logsCacheKey);
+        
+        if (cachedLogs) {
+          if (!isCancelled) {
+            setLogs(cachedLogs || []);
+          }
+          setLoadingLogs(false);
+          return;
+        }
+
         const res = await fetch(
           `${API_BASE_URL}/containers/${selectedContainer}/logs`
         );
@@ -104,6 +128,8 @@ export default function Logs() {
 
         const data = await res.json(); // { container, logs: [...] }
         console.log("Logs data:", data);
+
+        containerCache.set(logsCacheKey, data.logs || []);
 
         if (!isCancelled) {
           setLogs(data.logs || []);
