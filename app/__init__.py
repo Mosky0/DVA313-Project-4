@@ -11,7 +11,13 @@ def create_app():
     app.config.from_object("config.BaseConfig")
 
     # Enable CORS for all API routes
-    CORS(app)
+    CORS(app, resources={
+    r"/api/*": { #for getting petitions in frontend
+        "origins": ["http://localhost:5173"], 
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
     # Initialize SocketIO after CORS
     socketio.init_app(app, cors_allowed_origins="*")
