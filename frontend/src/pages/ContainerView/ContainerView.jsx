@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { API_BASE_URL } from "../../config";
-import { containerCache } from "../../utils/cache"; 
+import { containerCache } from "../../utils/cache";
 
 export default function ContainerView() {
   const { id } = useParams(); // from route /containers/:id
@@ -22,7 +22,7 @@ export default function ContainerView() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
 
-  const [cpuHistory, setCpuHistory] = useState([]); 
+  const [cpuHistory, setCpuHistory] = useState([]);
 
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -35,36 +35,40 @@ export default function ContainerView() {
   // --------- FETCH STATS (poll every 5s) ----------
   useEffect(() => {
     let intervalId;
-    const TOAST_ID= "status-error-container-view";
+    const TOAST_ID = "status-error-container-view";
     const POL_TIME_MS = 3000;
 
     const fetchStats = async () => {
       const statsCacheKey = `container_stats_${id}`;
       const cachedStats = containerCache.get(statsCacheKey);
-      
+
       if (cachedStats) {
         setStatsError("");
         setStats(cachedStats);
         setStatsLoading(false);
       }
-      
+
       fetch(`${API_BASE_URL}/containers/${id}/stats`)
         .then(async (res) => {
           var payload = await res.json();
           if (res.status === 410) {
             if (!toast.isActive(TOAST_ID)) {
-              toast.error(payload?.message ?? "Container has been removed from environment", { toastId: TOAST_ID, autoClose: 5000 });
-            } 
+              toast.error(
+                payload?.message ??
+                  "Container has been removed from environment",
+                { toastId: TOAST_ID, autoClose: 5000 }
+              );
+            }
             setStats(payload);
-            
+
             setStatsError("Container deleted or removed.");
             setStatsLoading(false);
 
-            clearInterval(intervalId)
+            clearInterval(intervalId);
             return payload;
-          }
-          else if (!res.ok) {
-            const message = payload.message || "Failed to fetch container stats";
+          } else if (!res.ok) {
+            const message =
+              payload.message || "Failed to fetch container stats";
 
             if (!toast.isActive(TOAST_ID)) {
               toast.error(message, { toastId: TOAST_ID, autoClose: 5000 });
@@ -101,16 +105,16 @@ export default function ContainerView() {
     const fetchHistoricalMetrics = () => {
       const historyCacheKey = `container_history_${id}`;
       const cachedHistory = containerCache.get(historyCacheKey);
-      
+
       if (cachedHistory) {
-        const cpuHistoryData = (cachedHistory.cpuHistory || []).map(item => ({
+        const cpuHistoryData = (cachedHistory.cpuHistory || []).map((item) => ({
           time: new Date(item.timestamp).toLocaleTimeString(),
-          value: item.value
+          value: item.value,
         }));
         setCpuHistory(cpuHistoryData);
         return;
       }
-      
+
       fetch(`${API_BASE_URL}/containers/${id}/metrics/history`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch stored metrics");
@@ -118,10 +122,10 @@ export default function ContainerView() {
         })
         .then((data) => {
           containerCache.set(historyCacheKey, data);
-          
-          const cpuHistoryData = (data.cpuHistory || []).map(item => ({
+
+          const cpuHistoryData = (data.cpuHistory || []).map((item) => ({
             time: new Date(item.timestamp).toLocaleTimeString(),
-            value: item.value
+            value: item.value,
           }));
           setCpuHistory(cpuHistoryData);
         })
@@ -131,11 +135,10 @@ export default function ContainerView() {
     };
 
     fetchHistoricalMetrics();
-    const interval = setInterval(fetchHistoricalMetrics, 1000);
+    const interval = setInterval(fetchHistoricalMetrics, 5000);
 
     return () => clearInterval(interval);
   }, [id]);
-
 
   // --------- FETCH LOGS WHEN TAB = "logs" ----------
   useEffect(() => {
@@ -143,7 +146,7 @@ export default function ContainerView() {
 
     const logsCacheKey = `container_logs_${id}`;
     const cachedLogs = containerCache.get(logsCacheKey);
-    
+
     if (cachedLogs) {
       setLogsLoading(false);
       setLogsError("");
@@ -162,8 +165,8 @@ export default function ContainerView() {
         })
         .then((data) => {
           containerCache.set(logsCacheKey, data.logs);
-        
-        setLogsLoading(false);
+
+          setLogsLoading(false);
           setLogsError("");
           setLogs(Array.isArray(data.logs) ? data.logs : []);
         })
