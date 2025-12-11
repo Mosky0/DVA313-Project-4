@@ -277,12 +277,25 @@ def container_logs(container_id):
 
         lines = [f"[{now}] {line}" for line in raw.splitlines()]
 
-    return jsonify(
-        {
-            "container": container.name,
-            "logs": lines,
-        }
-    )
+        return jsonify(
+            {
+                "container": container.name,
+                "logs": lines,
+            }
+        ), 200
+    except NotFound as e:
+        logger.error(f"Container not found: {container_id} : {e}")
+        return jsonify({
+            "error": "Container not found",
+            "container_id": container_id,
+        }), 410
+    except Exception as e:
+        logger.error(f"Error retrieving logs for container {container_id}: {e}")
+        return jsonify({
+            "error": "Unexpected error occurred",
+            "message": "Failed to retrieve container logs",
+        }), 500
+
 
 # ---------------- FETCH PROCESSES ----------------
 @metrics_bp.route("/containers/<container_id>/processes")
