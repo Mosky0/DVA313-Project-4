@@ -107,8 +107,8 @@ def system_metrics():
             if p.info["status"] == psutil.STATUS_RUNNING:
                 running += 1
 
-        total_cpu = psutil.cpu_percent(interval=None)
-        per_core = psutil.cpu_percent(interval=None, percpu=True)
+        total_cpu = psutil.cpu_percent(interval=0.1)
+        per_core = psutil.cpu_percent(interval=0.1, percpu=True)
 
         mem = psutil.virtual_memory()
         used_bytes = mem.used
