@@ -6,17 +6,17 @@ import { API_BASE_URL } from "../../config";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
-import { systemCache, containerCache, eventCache } from "../../utils/cache";
 
 export default function Dashboard() {
   const [system, setSystem] = useState(null);
   const [containers, setContainers] = useState([]);
   const [events, setEvents] = useState([]);
   const [loadingSys, setLoadingSys] = useState(true);
-  const [selectedCores, setSelectedCores] = useState({});
+  const [selectedCores, setSelectedCores] = useState({ systemCpu: true }); // Add systemCpu to selected cores and make it true by default
   const [selectAllCores, setSelectAllCores] = useState(false);
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
+  const [systemCpuHistory, setSystemCpuHistory] = useState([]); // Add state for system CPU history
 
   // SINGLE UNIFIED POLLing effect for system, containers, stats, events
   useEffect(() => {
@@ -24,128 +24,102 @@ export default function Dashboard() {
 
     const pollAllData = async () => {
       try {
-        // Fetch system and cache
-        const systemCacheKey = 'dashboard_system';
-        const cachedSystemData = systemCache.get(systemCacheKey);
-        
-        if (cachedSystemData) {
-          if (mounted) setSystem(cachedSystemData);
-        } else {
-          const sysRes = await fetch(`${API_BASE_URL}/system`);
-          const sysData = sysRes.ok ? await sysRes.json() : null;
-          if (sysData) {
-            systemCache.set(systemCacheKey, sysData);
-            if (mounted) setSystem(sysData);
-          }
-        }
+        const [
+          sysRes,
+          historyRes,
+          contRes,
+          latestSysRes,
+          evRes
+        ] = await Promise.all([
+          fetch(`${API_BASE_URL}/system`),
+          fetch(`${API_BASE_URL}/system/metrics/history`),
+          fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" }),
+          fetch(`${API_BASE_URL}/system/metrics/latest`),
+          fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" })
+        ]);
 
-        const historyCacheKey = 'system_metrics_history';
-        const cachedHistory = systemCache.get(historyCacheKey);
-        
-        if (cachedHistory) {
-          if (mounted) {
-            setCPUCoreHistory(cachedHistory.cpuCoreHistories || {});
-            setSystemMemoryHistory(cachedHistory.memoryHistory || []);
-          }
-        } else {
-          const historyRes = await fetch(`${API_BASE_URL}/system/metrics/history`);
-          const historyData = historyRes.ok ? await historyRes.json() : null;
-          if (historyData) {
-            systemCache.set(historyCacheKey, historyData);
-            if (mounted) {
-              setCPUCoreHistory(historyData.cpuCoreHistories || {});
-              setSystemMemoryHistory(historyData.memoryHistory || []);
-            }
-          }
-        }
-
-        // Fetch containers list
-        const containersCacheKey = 'dashboard_containers_list';
-        const cachedContainersList = containerCache.get(containersCacheKey);
-        
-        let contListData;
-        if (cachedContainersList) {
-          contListData = cachedContainersList;
-        } else {
-          const contRes = await fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" });
-          if (contRes.ok) {
-            contListData = await contRes.json();
-            containerCache.set(containersCacheKey, contListData);
-          }
-        }
-
-        if (!mounted || !Array.isArray(contListData)) return;
-
-        // Map basic info
-        const mapped = contListData.map((c) => ({
-          id: c.id || c.Id || "",
-          name: c.name || c.Name || c.id || "",
-          cpu_percent: 0,
-          mem_usage: "—",
-          status: (c.status || c.Status || "").toString().toLowerCase(),
-        }));
-
-        // Fetch stats for ALL containers
-        const statsPromises = mapped.map(async (container) => {
-          const statsCacheKey = `container_stats_${container.id}`;
-          const cachedStats = containerCache.get(statsCacheKey);
-          
-          if (cachedStats) {
-            return cachedStats;
-          }
-          
+        const sysData = sysRes.ok ? await sysRes.json() : null;
+        if (sysData) {
           try {
-            const res = await fetch(`${API_BASE_URL}/containers/${container.id}/stats`);
-            const stats = res.ok ? await res.json() : null;
+            const latestSysData = latestSysRes.ok ? await latestSysRes.json() : null;
             
-            if (!stats) return null;
-            
-            // CPU value comes as decimal multiply by 100 to get percentage
-            const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
-            const cpuValue = rawCpu < 10 ? rawCpu * 100 : rawCpu;
-            
-            const result = {
-              id: container.id,
-              cpu_percent: Number(cpuValue) || 0,
-              mem_usage: stats.mem_usage ?? stats.MemoryUsage ?? stats.memory ?? "—",
-            };
-            
-            containerCache.set(statsCacheKey, result);
-            return result;
-          } catch (err) {
-            console.error(`Stats fetch error for ${container.id}:`, err);
-            return null;
+            if (latestSysData && latestSysData.systemCpu) {
+              sysData.cpu = {
+                ...sysData.cpu,
+                total_percent: latestSysData.systemCpu.value
+              };
+            }
+          } catch (e) {
+            console.warn("Failed to fetch latest system metrics:", e);
           }
-        });
-
-        const statsResults = await Promise.all(statsPromises);
-
-        // Update all containers at once with stats
-        if (mounted) {
-          const updated = mapped.map((c) => {
-            const stats = statsResults.find((s) => s && s.id === c.id);
-            return stats ? { ...c, ...stats } : c;
-          });
-          setContainers(updated);
+          
+          if (mounted) setSystem(sysData);
+        }
+        const historyData = historyRes.ok ? await historyRes.json() : null;
+        if (historyData) {
+          if (mounted) {
+            setCPUCoreHistory(historyData.cpuCoreHistories || {});
+            setSystemMemoryHistory(historyData.memoryHistory || []);
+            setSystemCpuHistory(historyData.systemCpuHistory || []); // Set system CPU history
+          }
         }
 
-        // Fetch events
-        const eventsCacheKey = 'dashboard_events';
-        const cachedEvents = eventCache.get(eventsCacheKey);
-        
-        if (cachedEvents) {
-          if (mounted) setEvents(Array.isArray(cachedEvents) ? cachedEvents : []);
-        } else {
-          const evRes = await fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" });
-          if (evRes.ok) {
-            const evData = await evRes.json();
-            eventCache.set(eventsCacheKey, evData);
-            if (mounted) setEvents(Array.isArray(evData) ? evData : []);
-          } else {
-            // 404 or other error / clear events
-            eventCache.set(eventsCacheKey, []);
-            if (mounted) setEvents([]);
+        if (contRes.ok) {
+          const contListData = await contRes.json();
+          
+          if (!mounted || !Array.isArray(contListData)) return;
+
+          // Map basic info
+          const mapped = contListData.map((c) => ({
+            id: c.id || c.Id || "",
+            name: c.name || c.Name || c.id || "",
+            cpu_percent: 0,
+            mem_usage: "—",
+            status: (c.status || c.Status || "").toString().toLowerCase(),
+          }));
+
+          const statsPromises = mapped.map(async (container) => {
+            try {
+              const res = await fetch(`${API_BASE_URL}/containers/${container.id}/stats`);
+              const stats = res.ok ? await res.json() : null;
+              
+              if (!stats) return null;
+              
+              // CPU value comes as decimal multiply by 100 to get percentage
+              const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
+              const cpuValue = rawCpu < 10 ? rawCpu * 100 : rawCpu;
+              
+              const result = {
+                id: container.id,
+                cpu_percent: Number(cpuValue) || 0,
+                mem_usage: stats.mem_usage ?? stats.MemoryUsage ?? stats.memory ?? "—",
+              };
+              
+              return result;
+            } catch (err) {
+              console.error(`Stats fetch error for ${container.id}:`, err);
+              return null;
+            }
+          });
+
+          const statsResults = await Promise.all(statsPromises);
+
+          // Update all containers at once with stats
+          if (mounted) {
+            const updated = mapped.map((c) => {
+              const stats = statsResults.find((s) => s && s.id === c.id);
+              return stats ? { ...c, ...stats } : c;
+            });
+            setContainers(updated);
           }
+        }
+
+        if (evRes.ok) {
+          const evData = await evRes.json();
+          if (mounted) setEvents(Array.isArray(evData) ? evData : []);
+        } else {
+          // 404 or other error / clear events
+          if (mounted) setEvents([]);
         }
       } catch (e) {
         console.error("pollAllData error:", e);
@@ -155,7 +129,7 @@ export default function Dashboard() {
     };
 
     pollAllData();
-    const iv = setInterval(pollAllData, 3000);
+    const iv = setInterval(pollAllData, 5000); 
 
     return () => {
       mounted = false;
@@ -163,46 +137,56 @@ export default function Dashboard() {
     };
   }, []);
 
-    // CPU TREND FROM RING BUFFER
+  // CPU TREND FROM RING BUFFER
   const cpuTrendSeries = useMemo(() => {
-    if (cpuCoreHistory && Object.keys(cpuCoreHistory).length > 0) {
-      const coreKeys = Object.keys(cpuCoreHistory).filter(coreIdx => selectedCores[coreIdx]);
-      
-      if (coreKeys.length === 0) return [];
-      
-      const maxLength = Math.max(...coreKeys.map(coreIdx => cpuCoreHistory[coreIdx].length));
-      
-      const refCore = coreKeys.length > 0 ? coreKeys[0] : null;
-      if (!refCore) return [];
-      
-      const coreData = cpuCoreHistory[refCore];
-      const startIndex = Math.max(0, coreData.length - 50);
-      
-      return coreData.slice(startIndex).map((entry, idx) => {
-        const point = { 
-          time: entry.timestamp 
-            ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
-            : `Point ${idx}`
-        };
-        
-        coreKeys.forEach(coreIdx => {
-          const coreData = cpuCoreHistory[coreIdx];
-          const dataIndex = startIndex + idx;
-          
-          if (dataIndex >= 0 && dataIndex < coreData.length) {
-            point[`Core ${coreIdx}`] = coreData[dataIndex].value;
-          } else {
-            point[`Core ${coreIdx}`] = 0;
-          }
-        });
-        
-        return point;
-      });
+    const hasSelectedCores = Object.keys(selectedCores).some(key => selectedCores[key]);
+    const coreKeys = Object.keys(cpuCoreHistory).filter(coreIdx => selectedCores[coreIdx]);
+    
+    if (!hasSelectedCores) return [];
+    
+    let referenceData, startIndex;
+    if (selectedCores.systemCpu && systemCpuHistory.length > 0) {
+      referenceData = systemCpuHistory;
+    } else if (coreKeys.length > 0) {
+      const refCore = coreKeys[0];
+      referenceData = cpuCoreHistory[refCore];
+    } else {
+      return [];
     }
     
+    const maxLength = Math.min(referenceData.length, 50);
+    startIndex = referenceData.length - maxLength;
     
-    return [];
-  }, [system, selectedCores, cpuCoreHistory]);
+    return referenceData.slice(startIndex).map((entry, idx) => {
+      const point = { 
+        time: entry.timestamp 
+          ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+          : `Point ${idx}`
+      };
+      
+      if (selectedCores.systemCpu && systemCpuHistory.length > 0) {
+        const systemDataIndex = startIndex + idx;
+        if (systemDataIndex >= 0 && systemDataIndex < systemCpuHistory.length) {
+          point['System CPU'] = systemCpuHistory[systemDataIndex].value;
+        } else {
+          point['System CPU'] = 0;
+        }
+      }
+      
+      coreKeys.forEach(coreIdx => {
+        const coreData = cpuCoreHistory[coreIdx];
+        const dataIndex = startIndex + idx;
+        
+        if (dataIndex >= 0 && dataIndex < coreData.length) {
+          point[`Core ${coreIdx}`] = coreData[dataIndex].value;
+        } else {
+          point[`Core ${coreIdx}`] = 0;
+        }
+      });
+      
+      return point;
+    });
+  }, [selectedCores, cpuCoreHistory, systemCpuHistory]);
 
   const memPct = useMemo(() => {
     if (!system) return 0;
@@ -288,12 +272,19 @@ export default function Dashboard() {
       [coreIdx]: !prev[coreIdx]
     }));
   }, []);
-
+  
+  const handleSystemCpuToggle = useCallback(() => {
+    setSelectedCores((prev) => ({
+      ...prev,
+      systemCpu: !prev.systemCpu
+    }));
+  }, []);
+  
   const handleSelectAll = useCallback(() => {
     const newSelectAll = !selectAllCores;
     setSelectAllCores(newSelectAll);
     
-    const newSelectedCores = {};
+    const newSelectedCores = { systemCpu: true };
     if (system?.cpu?.per_core) {
       system.cpu.per_core.forEach((_, i) => {
         newSelectedCores[i] = newSelectAll;
@@ -317,11 +308,8 @@ export default function Dashboard() {
   const totalProcesses = system?.total_processes ?? 0;
   const running = system?.running ?? 0;
   const cpuPerCore = system?.cpu?.per_core || [];
+  const systemCpu = system?.cpu?.total_percent || 0;
   
-  const cpuAvg = cpuPerCore.length > 0 
-    ? cpuPerCore.reduce((sum, core) => sum + core, 0) / cpuPerCore.length
-    : 0;
-
   return (
     <div className="p-6 space-y-6">
       {/* TOP CARDS */}
@@ -337,7 +325,7 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow flex items-center">
-          <CircleMetric value={Math.round(cpuAvg)} label="CPU Avg" />
+          <CircleMetric value={Math.round(systemCpu || 0)} label="System CPU" />
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow">
@@ -373,6 +361,16 @@ export default function Dashboard() {
               <div className="flex-1"></div>
             </div>
             
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={!!selectedCores.systemCpu}
+                onChange={handleSystemCpuToggle}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <div className="text-xs text-gray-600">System CPU</div>
+            </div>
+            
             {cpuPerCore.length ? (
               cpuPerCore.map((v, i) => {
                 const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0 
@@ -405,7 +403,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl shadow p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium">CPU trend (selected cores)</div>
-            <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} cores</div>
+            <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} items</div>
           </div>
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
@@ -414,6 +412,15 @@ export default function Dashboard() {
                 <YAxis stroke="#888" domain={[0, 100]} />
                 <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
                 <Legend />
+                {selectedCores.systemCpu && (
+                  <Line
+                    type="monotone"
+                    dataKey="System CPU"
+                    stroke="#ff6b6b"
+                    dot={false}
+                    strokeWidth={2}
+                  />
+                )}
                 {cpuPerCore.map((_, coreIdx) =>
                   selectedCores[coreIdx] ? (
                     <Line

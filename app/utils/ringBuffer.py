@@ -40,6 +40,7 @@ class RingBuffer:
 
 containerMetricsStorage = defaultdict(dict)
 systemMetricsStorage = {
+    'systemCpuBuffer': None,
     'cpuCoreBuffers': {},
     'memoryBuffer': None
 }
@@ -56,6 +57,9 @@ def initializeContainerBuffers(container_id, buffer_size=DEFAULT_BUFFER_SIZE):
         }
 
 def initializeSystemBuffers(num_cores, buffer_size=SYSTEM_DEFAULT_BUFFER_SIZE):
+    if systemMetricsStorage['systemCpuBuffer'] is None:
+        systemMetricsStorage['systemCpuBuffer'] = RingBuffer(buffer_size)
+        
     for core_idx in range(num_cores):
         if core_idx not in systemMetricsStorage['cpuCoreBuffers']:
             systemMetricsStorage['cpuCoreBuffers'][core_idx] = RingBuffer(buffer_size)
@@ -88,7 +92,14 @@ def addContainerMetrics(container_id, metrics):
 
 def addSystemMetrics(system_data):
     cpu_per_core = system_data.get('cpu', {}).get('per_core', [])
+    cpu_total = system_data.get('cpu', {}).get('total_percent', 0)
     initializeSystemBuffers(len(cpu_per_core))
+    
+    if isinstance(cpu_total, (int, float)):
+        systemMetricsStorage['systemCpuBuffer'].push({
+            'timestamp': datetime.now().isoformat(),
+            'value': cpu_total
+        })
     
     for core_idx, core_value in enumerate(cpu_per_core):
         if isinstance(core_value, (int, float)):
@@ -122,8 +133,12 @@ def getStoredMetrics(container_id):
 def getSystemMetricsHistory():
     result = {
         'cpuCoreHistories': {},
+        'systemCpuHistory': [],
         'memoryHistory': []
     }
+    
+    if systemMetricsStorage['systemCpuBuffer']:
+        result['systemCpuHistory'] = systemMetricsStorage['systemCpuBuffer'].getAll()
     
     for core_idx, buffer in systemMetricsStorage['cpuCoreBuffers'].items():
         result['cpuCoreHistories'][core_idx] = buffer.getAll()
@@ -144,9 +159,13 @@ def getLatestContainerMetrics(container_id):
 
 def getLatestSystemMetrics():
     result = {
+        'systemCpu': None,
         'cpuCores': {},
         'memory': None
     }
+    
+    if systemMetricsStorage['systemCpuBuffer']:
+        result['systemCpu'] = systemMetricsStorage['systemCpuBuffer'].getLast()
     
     for core_idx, buffer in systemMetricsStorage['cpuCoreBuffers'].items():
         result['cpuCores'][core_idx] = buffer.getLast()
