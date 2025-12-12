@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { API_BASE_URL } from "../../config";
-import { containerCache } from "../../utils/cache"; 
+import { containerCache } from "../../utils/cache";
 
 export default function ContainerView() {
   const { id } = useParams(); // from route /containers/:id
@@ -22,45 +22,53 @@ export default function ContainerView() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
 
-  const [cpuHistory, setCpuHistory] = useState([]); 
+  const [cpuHistory, setCpuHistory] = useState([]);
 
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState("");
 
+  const [processes, setProcesses] = useState([]);
+  const [processesLoading, setProcessesLoading] = useState(false);
+  const [processesError, setProcessesError] = useState("");
+
   // --------- FETCH STATS (poll every 5s) ----------
   useEffect(() => {
     let intervalId;
-    const TOAST_ID= "status-error-container-view";
+    const TOAST_ID = "status-error-container-view";
     const POL_TIME_MS = 3000;
 
     const fetchStats = async () => {
       const statsCacheKey = `container_stats_${id}`;
       const cachedStats = containerCache.get(statsCacheKey);
-      
+
       if (cachedStats) {
         setStatsError("");
         setStats(cachedStats);
         setStatsLoading(false);
       }
-      
+
       fetch(`${API_BASE_URL}/containers/${id}/stats`)
         .then(async (res) => {
           var payload = await res.json();
           if (res.status === 410) {
             if (!toast.isActive(TOAST_ID)) {
-              toast.error(payload?.message ?? "Container has been removed from environment", { toastId: TOAST_ID, autoClose: 5000 });
-            } 
+              toast.error(
+                payload?.message ??
+                  "Container has been removed from environment",
+                { toastId: TOAST_ID, autoClose: 5000 }
+              );
+            }
             setStats(payload);
-            
+
             setStatsError("Container deleted or removed.");
             setStatsLoading(false);
 
-            clearInterval(intervalId)
+            clearInterval(intervalId);
             return payload;
-          }
-          else if (!res.ok) {
-            const message = payload.message || "Failed to fetch container stats";
+          } else if (!res.ok) {
+            const message =
+              payload.message || "Failed to fetch container stats";
 
             if (!toast.isActive(TOAST_ID)) {
               toast.error(message, { toastId: TOAST_ID, autoClose: 5000 });
@@ -97,16 +105,16 @@ export default function ContainerView() {
     const fetchHistoricalMetrics = () => {
       const historyCacheKey = `container_history_${id}`;
       const cachedHistory = containerCache.get(historyCacheKey);
-      
+
       if (cachedHistory) {
-        const cpuHistoryData = (cachedHistory.cpuHistory || []).map(item => ({
+        const cpuHistoryData = (cachedHistory.cpuHistory || []).map((item) => ({
           time: new Date(item.timestamp).toLocaleTimeString(),
-          value: item.value
+          value: item.value,
         }));
         setCpuHistory(cpuHistoryData);
         return;
       }
-      
+
       fetch(`${API_BASE_URL}/containers/${id}/metrics/history`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch stored metrics");
@@ -114,10 +122,10 @@ export default function ContainerView() {
         })
         .then((data) => {
           containerCache.set(historyCacheKey, data);
-          
-          const cpuHistoryData = (data.cpuHistory || []).map(item => ({
+
+          const cpuHistoryData = (data.cpuHistory || []).map((item) => ({
             time: new Date(item.timestamp).toLocaleTimeString(),
-            value: item.value
+            value: item.value,
           }));
           setCpuHistory(cpuHistoryData);
         })
@@ -127,11 +135,10 @@ export default function ContainerView() {
     };
 
     fetchHistoricalMetrics();
-    const interval = setInterval(fetchHistoricalMetrics, 1000);
+    const interval = setInterval(fetchHistoricalMetrics, 5000);
 
     return () => clearInterval(interval);
   }, [id]);
-
 
   // --------- FETCH LOGS WHEN TAB = "logs" ----------
   useEffect(() => {
@@ -139,7 +146,7 @@ export default function ContainerView() {
 
     const logsCacheKey = `container_logs_${id}`;
     const cachedLogs = containerCache.get(logsCacheKey);
-    
+
     if (cachedLogs) {
       setLogsLoading(false);
       setLogsError("");
@@ -147,35 +154,77 @@ export default function ContainerView() {
       return;
     }
 
-    setLogsLoading(true);
-    setLogsError("");
+    const fetchLogs = () => {
+      setLogsLoading(true);
+      setLogsError("");
 
-    fetch(`${API_BASE_URL}/containers/${id}/logs`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch logs");
-        return res.json();
-      })
-      .then((data) => {
-        containerCache.set(logsCacheKey, data.logs);
-        
-        setLogsLoading(false);
-        setLogsError("");
-        setLogs(Array.isArray(data.logs) ? data.logs : []);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLogsError("Could not load logs.");
-        setLogsLoading(false);
-      });
+      fetch(`${API_BASE_URL}/containers/${id}/logs`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch logs");
+          return res.json();
+        })
+        .then((data) => {
+          containerCache.set(logsCacheKey, data.logs);
+
+          setLogsLoading(false);
+          setLogsError("");
+          setLogs(Array.isArray(data.logs) ? data.logs : []);
+        })
+        .catch((err) => {
+          console.error(err);
+          setLogsError("Could not load logs.");
+          setLogsLoading(false);
+        });
+    };
+
+    // Initial fetch
+    fetchLogs();
+
+    // Poll every 5 seconds
+    const intervalId = setInterval(fetchLogs, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [activeTab, id]);
+
+  // --------- FETCH PROCESSES ----------
+  useEffect(() => {
+    if (activeTab !== "details") return;
+
+    const fetchProcesses = () => {
+      setProcessesLoading(true);
+      setProcessesError("");
+
+      fetch(`${API_BASE_URL}/containers/${id}/processes`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch processes");
+          return res.json();
+        })
+        .then((data) => {
+          setProcessesLoading(false);
+          setProcessesError("");
+          setProcesses(Array.isArray(data.processes) ? data.processes : []);
+        })
+        .catch((err) => {
+          console.error(err);
+          setProcessesError("Could not load processes.");
+          setProcessesLoading(false);
+          setProcesses([]);
+        });
+    };
+
+    // Initial fetch
+    fetchProcesses();
+
+    // Poll every 5 seconds
+    const intervalId = setInterval(fetchProcesses, 5000);
+
+    return () => clearInterval(intervalId);
   }, [activeTab, id]);
 
   const memPercent = (() => {
     if (!stats || !stats.mem_usage_bytes || !stats.mem_limit_bytes) return 0;
     if (stats.mem_limit_bytes === 0) return 0;
-    return Math.min(
-      100,
-      (stats.mem_usage_bytes / stats.mem_limit_bytes) * 100
-    );
+    return Math.min(100, (stats.mem_usage_bytes / stats.mem_limit_bytes) * 100);
   })();
 
   const memUsedMB = stats?.mem_usage_bytes
@@ -228,9 +277,7 @@ export default function ContainerView() {
               {statusLabel}
             </span>
 
-            <span className="text-gray-500 text-sm">
-              Uptime: N/A {/* can be added later from backend */}
-            </span>
+            <span className="text-gray-500 text-sm">Uptime: N/A</span>
           </div>
         </div>
 
@@ -283,7 +330,6 @@ export default function ContainerView() {
                       strokeWidth="10"
                       fill="none"
                     />
-
                     <circle
                       cx="50%"
                       cy="50%"
@@ -296,9 +342,7 @@ export default function ContainerView() {
                     />
                   </svg>
                 </div>
-                <p className="text-xl font-bold">
-                  {cpuValue.toFixed(1)}%
-                </p>
+                <p className="text-xl font-bold">{cpuValue.toFixed(1)}%</p>
                 <p className="text-gray-500 text-sm">CPU</p>
               </div>
             </div>
@@ -306,20 +350,15 @@ export default function ContainerView() {
             {/* Memory card */}
             <div className="bg-white shadow rounded-xl p-6">
               <p className="font-semibold text-gray-700 mb-2">Memory</p>
-
-              <p className="text-xl font-bold mb-2">
-                {memPercent.toFixed(1)}%
-              </p>
+              <p className="text-xl font-bold mb-2">{memPercent.toFixed(1)}%</p>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
                   className="h-3 rounded-full bg-green-500"
                   style={{ width: `${memPercent}%` }}
                 ></div>
               </div>
-
               <p className="text-sm text-gray-500 mt-2">
-                {memUsedMB.toFixed(1)} MB /{" "}
-                {memTotalMB.toFixed(1)} MB
+                {memUsedMB.toFixed(1)} MB / {memTotalMB.toFixed(1)} MB
               </p>
             </div>
 
@@ -328,13 +367,20 @@ export default function ContainerView() {
               <p className="font-semibold text-gray-700 mb-3">
                 Quick CPU trend
               </p>
-
               <div className="w-full h-32">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={cpuHistory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="time" stroke="#555" hide={cpuHistory.length === 0} />
-                    <YAxis stroke="#555" domain={[0, 1]} tickFormatter={(value) => `${value.toFixed(2)}%`} />
+                    <XAxis
+                      dataKey="time"
+                      stroke="#555"
+                      hide={cpuHistory.length === 0}
+                    />
+                    <YAxis
+                      stroke="#555"
+                      domain={[0, 100]}
+                      tickFormatter={(value) => `${value}%`}
+                    />
                     <Tooltip />
                     <Line
                       type="monotone"
@@ -349,35 +395,68 @@ export default function ContainerView() {
             </div>
           </div>
 
-          {/* Processes Table (still dummy for now) */}
+          {/* Processes Table */}
           <div className="bg-white shadow rounded-xl p-6">
-            <p className="font-semibold mb-4 text-gray-700">
-              Processes (top) – placeholder
-            </p>
+            <p className="font-semibold mb-4 text-gray-700">Processes</p>
 
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-gray-600 border-b">
-                  <th className="py-2">PID</th>
-                  <th>CPU%</th>
-                  <th>MEM%</th>
-                  <th>STATE</th>
-                  <th>TIME+</th>
-                  <th>COMMAND</th>
-                </tr>
-              </thead>
+            {processesError && (
+              <p className="text-red-500 text-sm mb-3">{processesError}</p>
+            )}
 
-              <tbody>
-                <tr className="border-b text-sm">
-                  <td className="py-2">—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>No process data (not in API yet)</td>
-                </tr>
-              </tbody>
-            </table>
+            {processesLoading && processes.length === 0 ? (
+              <p className="text-gray-500 text-sm">Loading processes…</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-gray-600 border-b bg-gray-50">
+                      <th className="py-3 px-3">PID</th>
+                      <th className="py-3 px-3">CPU%</th>
+                      <th className="py-3 px-3">MEM%</th>
+                      <th className="py-3 px-3">State</th>
+                      <th className="py-3 px-3">CPU Time</th>
+                      <th className="py-3 px-3">Command</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {processes.length === 0 ? (
+                      <tr className="border-b text-sm">
+                        <td className="py-2" colSpan="6">
+                          <span className="text-gray-500">
+                            No process data available
+                          </span>
+                        </td>
+                      </tr>
+                    ) : (
+                      processes.map((proc, idx) => (
+                        <tr
+                          key={idx}
+                          className="border-b text-sm hover:bg-gray-50"
+                        >
+                          <td className="py-2 px-3">{proc.pid || "—"}</td>
+                          <td className="px-3">
+                            {proc.cpu_percent != null
+                              ? `${proc.cpu_percent}%`
+                              : "—"}
+                          </td>
+                          <td className="px-3">
+                            {proc.mem_percent != null
+                              ? `${proc.mem_percent}%`
+                              : "—"}
+                          </td>
+                          <td className="px-3">{proc.state || "—"}</td>
+                          <td className="px-3">{proc.time || "—"}</td>
+                          <td className="px-3 truncate max-w-xs">
+                            {proc.command || "—"}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -385,12 +464,8 @@ export default function ContainerView() {
       {/* LOGS TAB */}
       {activeTab === "logs" && (
         <div className="bg-black text-green-400 p-4 rounded-xl shadow h-[500px] overflow-y-auto font-mono text-sm">
-          {logsLoading && (
-            <p className="text-gray-400">Loading logs…</p>
-          )}
-          {logsError && (
-            <p className="text-red-400">{logsError}</p>
-          )}
+          {logsLoading && <p className="text-gray-400">Loading logs…</p>}
+          {logsError && <p className="text-red-400">{logsError}</p>}
           {!logsLoading &&
             !logsError &&
             logs.map((line, i) => <p key={i}>{line}</p>)}

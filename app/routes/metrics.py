@@ -295,3 +295,110 @@ def container_logs(container_id):
             "error": "Unexpected error occurred",
             "message": "Failed to retrieve container logs",
         }), 500
+
+# ---------------- FETCH PROCESSES ----------------
+@metrics_bp.route("/containers/<container_id>/processes")
+def container_processes(container_id):
+    """Return the list of processes running inside a container"""
+    try:
+        container = docker_client.containers.get(container_id)
+        #verify it is running
+        container.reload()
+        if container.status != "running":
+            return jsonify({
+                "container": container.name,
+                "processes": [],
+                "error": "Container is not currently running."
+            }), 200 
+        
+        #execute top inside the container
+
+        top_data = container.top(ps_args="aux")
+        titles = top_data.get("Titles", [])
+        processes_total = top_data.get("Processes", [])
+
+        #map the titles to each process info
+        pid_idx = -1
+        cpu_idx = -1
+        mem_idx = -1 
+        time_idx = -1 
+        stat_idx = -1
+        cmd_idx = -1
+
+        #find indexes
+        for i, title in enumerate(titles):
+            title_upper = title.upper()
+            if title_upper == "PID":
+                pid_idx = i
+            elif title_upper in ["%CPU", "CPU"]:
+                cpu_idx = i
+            elif title_upper in ["%MEM", "MEM"]:
+                mem_idx = i
+            elif title_upper == "TIME":
+                time_idx = i
+            elif title_upper in ["STAT", "STATE", "S"]:
+                stat_idx = i
+            elif title_upper in ["CMD", "COMMAND"]:
+                cmd_idx = i
+
+        def normalize_state(state_raw):
+            """Convert Linux process state codes to human-readable"""
+            if not state_raw:
+                return "Unknown"
+            
+            state_code = state_raw[0].upper()
+            
+            state_map = {
+                'R': 'Running',
+                'S': 'Sleeping',
+                'D': 'Waiting',
+                'Z': 'Zombie',
+                'T': 'Stopped',
+                'I': 'Idle',
+            }
+            
+            return state_map.get(state_code, state_raw)
+
+        processes = []
+
+        for proc_row in processes_total:
+            try:
+                state_raw = proc_row[stat_idx] if stat_idx >= 0 and len(proc_row) > stat_idx else ""
+                state = normalize_state(state_raw)
+                
+                cpu_val = proc_row[cpu_idx] if cpu_idx >= 0 and len(proc_row) > cpu_idx else "0.0"
+                mem_val = proc_row[mem_idx] if mem_idx >= 0 and len(proc_row) > mem_idx else "0.0"
+                
+                try:
+                    cpu_float = float(cpu_val)
+                    mem_float = float(mem_val)
+                except (ValueError, TypeError):
+                    cpu_float = 0.0
+                    mem_float = 0.0
+                proc_info = {
+                    "pid": proc_row[pid_idx] if pid_idx >= 0 and len(proc_row) > pid_idx else "—",
+                    "cpu_percent": cpu_float,
+                    "mem_percent": mem_float,
+                    "state": state,
+                    "state_raw": state_raw,  
+                    "time": proc_row[time_idx] if time_idx >= 0 and len(proc_row) > time_idx else "—",
+                    "command": proc_row[cmd_idx] if cmd_idx >= 0 and len(proc_row) > cmd_idx else "—",
+                }
+                processes.append(proc_info)
+            except (IndexError, ValueError) as e:
+                print(f"Error parsing process row: {e}")
+                continue
+
+        return jsonify({
+            "container": container.name,
+            "status": container.status,
+            "processes": processes,
+        }), 200
+        
+    except docker.errors.NotFound as e:
+        return jsonify({"error": "Container not found",
+                        "container_id": container_id}), 410
+    
+    except docker.errors.Exception as e:
+        return jsonify({"error": "Unexpected error occurred",
+                        "message": "Failed to retrieve container processes."}), 500
