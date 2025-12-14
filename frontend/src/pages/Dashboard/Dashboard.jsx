@@ -7,6 +7,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 
+
 export default function Dashboard() {
   const [system, setSystem] = useState(null);
   const [containers, setContainers] = useState([]);
@@ -293,15 +294,23 @@ export default function Dashboard() {
     setSelectedCores(newSelectedCores);
   }, [selectAllCores, system?.cpu?.per_core]);
 
-  if (loadingSys) {
-    return (
-      <div className="p-6">
-        <div className="bg-white rounded-2xl shadow p-4 text-sm text-gray-500">
-          Loading dashboard…
+ if (loadingSys) {
+  return (
+    <div className="p-6 flex items-center justify-center min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
+      <div className="flex flex-col items-center gap-6 bg-white p-8 rounded-2xl shadow-lg">
+        <div className="relative">
+          <img 
+          src="/hitachi_logo_icon_168125.svg" 
+          alt="Hitachi Logo" 
+          className="text-6xl text-gray-600 animate-pulse" />
+          <div className="absolute inset-0 w-8 h-8 border-4 border-gray-600 border-t-transparent rounded-full animate-spin mx-auto mt-2"></div>
         </div>
+        <div className="text-lg font-semibold text-gray-700">Loading dashboard…</div>
+        <div className="text-sm text-gray-500">Fetching system data</div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   const load = system?.load || [0, 0, 0];
   const uptime = system?.uptime || "N/A";
