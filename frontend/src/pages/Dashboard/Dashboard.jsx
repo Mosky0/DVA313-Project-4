@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState ,useRef} from "react";
 import ChartCard from "../../components/ui/ChartCard";
 import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
@@ -7,17 +7,19 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 
-
 export default function Dashboard() {
   const [system, setSystem] = useState(null);
   const [containers, setContainers] = useState([]);
   const [events, setEvents] = useState([]);
   const [loadingSys, setLoadingSys] = useState(true);
-  const [selectedCores, setSelectedCores] = useState({ systemCpu: true }); // Add systemCpu to selected cores and make it true by default
+  const [selectedCores, setSelectedCores] = useState({ systemCpu: true }); 
   const [selectAllCores, setSelectAllCores] = useState(false);
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
-  const [systemCpuHistory, setSystemCpuHistory] = useState([]); // Add state for system CPU history
+  const [systemCpuHistory, setSystemCpuHistory] = useState([]); 
+  const [backendStatus, setBackendStatus] = useState("connected");
+  const hideBannerTimeout = useRef(null);
+
 
   // SINGLE UNIFIED POLLing effect for system, containers, stats, events
   useEffect(() => {
@@ -39,7 +41,18 @@ export default function Dashboard() {
           fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" })
         ]);
 
-        const sysData = sysRes.ok ? await sysRes.json() : null;
+        if (!sysRes.ok) throw new Error("System API failed");
+        const sysData = await sysRes.json();
+       if (mounted) {
+       setSystem(sysData);
+  
+      setBackendStatus((prev) => {
+      if (prev === "disconnected") return "reconnected";
+      return prev;
+      });
+
+}
+
         if (sysData) {
           try {
             const latestSysData = latestSysRes.ok ? await latestSysRes.json() : null;
@@ -123,9 +136,14 @@ export default function Dashboard() {
           if (mounted) setEvents([]);
         }
       } catch (e) {
-        console.error("pollAllData error:", e);
-      } finally {
+      console.error("pollAllData error:", e);
+       if (mounted) {
+       setBackendStatus("disconnected");
+       }
+     }
+     finally {
         if (mounted) setLoadingSys(false);
+         
       }
     };
 
@@ -137,6 +155,25 @@ export default function Dashboard() {
       clearInterval(iv);
     };
   }, []);
+
+  useEffect(() => {
+  if (backendStatus === "reconnected") {
+    if (hideBannerTimeout.current) {
+      clearTimeout(hideBannerTimeout.current);
+    }
+
+    hideBannerTimeout.current = setTimeout(() => {
+      setBackendStatus("connected");
+    }, 2000);
+  }
+
+  return () => {
+    if (hideBannerTimeout.current) {
+      clearTimeout(hideBannerTimeout.current);
+    }
+  };
+}, [backendStatus]);
+
 
   // CPU TREND FROM RING BUFFER
   const cpuTrendSeries = useMemo(() => {
@@ -294,7 +331,7 @@ export default function Dashboard() {
     setSelectedCores(newSelectedCores);
   }, [selectAllCores, system?.cpu?.per_core]);
 
- if (loadingSys) {
+  if (loadingSys) {
   return (
     <div className="p-6 flex items-center justify-center min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
       <div className="flex flex-col items-center gap-6 bg-white p-8 rounded-2xl shadow-lg">
@@ -307,10 +344,10 @@ export default function Dashboard() {
         </div>
         <div className="text-lg font-semibold text-gray-700">Loading dashboard…</div>
         <div className="text-sm text-gray-500">Fetching system data</div>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   const load = system?.load || [0, 0, 0];
   const uptime = system?.uptime || "N/A";
@@ -321,6 +358,38 @@ export default function Dashboard() {
   
   return (
     <div className="p-6 space-y-6">
+      {backendStatus !== "connected" && (
+  <div className="sticky top-0 z-50">
+    <div
+      className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-sm mb-4 border ${
+        backendStatus === "disconnected"
+          ? "bg-red-50 border-red-200 text-red-700"
+          : "bg-green-50 border-green-200 text-green-700"
+      }`}
+    >
+      <div
+        className={`w-2 h-8 rounded-full ${
+          backendStatus === "disconnected"
+            ? "bg-red-500"
+            : "bg-green-500"
+        }`}
+      />
+      <div className="flex-1">
+        <div className="text-sm font-semibold">
+          {backendStatus === "disconnected"
+            ? "Backend disconnected"
+            : "Backend reconnected"}
+        </div>
+        <div className="text-xs">
+          {backendStatus === "disconnected"
+            ? "Unable to reach server. Showing last known data."
+            : "Connection restored. Live data resumed."}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
       {/* TOP CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-4 shadow">
