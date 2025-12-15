@@ -12,14 +12,40 @@
         border-collapse: collapse;
         background: white;
       }
+      th,
+      td {
+        padding: 10px;
+        text-align: left;
+        border: 1px solid #ddd;
+      }
       .status-running {
         color: green;
         font-weight: bold;
       }
+
       .status-exited {
         color: red;
         font-weight: bold;
       }
+
+      .state-running {
+        color: #2196f3;
+        font-weight: bold;
+      }
+
+      .state-sleeping {
+        color: #9e9e9e;
+      }
+
+      .state-zombie {
+        color: #f44336;
+        font-weight: bold;
+      }
+
+      .state-stopped {
+        color: #ff9800;
+      }
+
       /* logs box */
       #logs-box {
         margin-top: 20px;
@@ -42,7 +68,6 @@
 
       .no-data {
         text-align: center;
-        color: #999;
         font-style: italic;
       }
     </style>
