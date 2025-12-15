@@ -31,6 +31,20 @@
         white-space: pre-wrap;
         font-family: monospace;
       }
+
+      .error-message {
+        color: #f44336;
+        padding: 10px;
+        background-color: #ffebee;
+        border-left: 4px solid #f44336;
+        margin: 10px 0;
+      }
+
+      .no-data {
+        text-align: center;
+        color: #999;
+        font-style: italic;
+      }
     </style>
   </head>
   <body>
@@ -58,27 +72,55 @@
     <pre id="logs-box"></pre>
 
     <!-- Processes -->
-    <label for="process-container-select">Select container:</label>
-    <select id="process-container-select">
-      <option value="">-- choose --</option>
-    </select>
-    <div id="process-error"></div>
-    <table id="processes-table">
-      <thead>
-        <tr>
-          <th>PID</th>
-          <th>CPU %</th>
-          <th>Memory %</th>
-          <th>State</th>
-          <th>Time</th>
-          <th>Command</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    <div class="section">
+      <h2>Container Processes</h2>
+      <div class="select-container">
+        <label for="process-container-select">Select container:</label>
+        <select id="process-container-select">
+          <option value="">-- choose --</option>
+        </select>
+      </div>
+      <div id="process-error"></div>
+      <table id="processes-table">
+        <thead>
+          <tr>
+            <th>PID</th>
+            <th>CPU %</th>
+            <th>Memory %</th>
+            <th>State</th>
+            <th>Time</th>
+            <th>Command</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="6" class="no-data">
+              Select a container to view processes
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <script>
       let selectedContainerId = "";
+      let selectedProcessContainerId = "";
+
+      //function to get states
+      function getStateClass(state) {
+        const stateLower = state.toLowerCase();
+        if (stateLower == "running") {
+          return "status-running";
+        } else if (stateLower == "sleeping") {
+          return "status-sleeping";
+        } else if (stateLower == "zombie") {
+          return "status-zombie";
+        } else if (stateLower == "stopped") {
+          return "status-exited";
+        } else {
+          return "";
+        }
+      }
 
       async function loadMetrics() {
         // Fetch containers
@@ -112,16 +154,16 @@
             stats.status === "running" ? "status-running" : "status-exited";
 
           rows.push(`
-            <tr>
-              <td>${c.name}</td>
-              <td class="${statusClass}">${stats.status}</td>
-              <td>${
-                stats.cpu_percent ? stats.cpu_percent.toFixed(2) : "0.00"
-              }%</td>
-              <td>${stats.mem_usage || "N/A"}</td>
-              <td>${stats.mem_limit || "N/A"}</td> 
-            </tr>
-          `);
+              <tr>
+                <td>${c.name}</td>
+                <td class="${statusClass}">${stats.status}</td>
+                <td>${
+                  stats.cpu_percent ? stats.cpu_percent.toFixed(2) : "0.00"
+                }%</td>
+                <td>${stats.mem_usage || "N/A"}</td>
+                <td>${stats.mem_limit || "N/A"}</td>
+              </tr>
+            `);
         }
 
         // Update the table in one shot (no stacking, minimal flicker)
@@ -140,9 +182,39 @@
           select.appendChild(opt);
         }
 
+        document
+          .getElementById("log-container-select")
+          .addEventListener("change", (e) => {
+            selectedContainerId = e.target.value;
+            if (selectedContainerId) {
+              loadLogs(selectedContainerId);
+            } else {
+              document.getElementById("logs-box").textContent = "";
+            }
+          });
+
+        //Update processes dropdown
+        const processSelect = document.getElementById(
+          "process-container-select"
+        );
+        const currentProcess = selectedProcessContainerId;
+        processSelect.innerHTML = '<option value="">-- choose --</option>';
+        for (const c of containers) {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = c.name;
+          if (c.id == currentProcess) opt.selected = true;
+          processSelect.appendChild(opt);
+        }
+
         // If a container is already selected, refresh its logs too
         if (selectedContainerId) {
           loadLogs(selectedContainerId);
+        }
+
+        //If a process container is already selected, refresh its processes too
+        if (selectedProcessContainerId) {
+          loadProcesses(selectedProcessContainerId);
         }
       }
 
@@ -166,14 +238,82 @@
         }
       }
 
+      async function loadProcesses(containerId) {
+        if (!containerId) return;
+
+        const errorDiv = document.getElementById("process-error");
+        const tbody = document.querySelector("#processes-table tbody");
+
+        try {
+          const res = await fetch(`/api/containers/${containerId}/processes`);
+          if (!res.ok) {
+            if (res.status === 410) {
+              errorDiv.innerHTML =
+                '<div class="error-message">Container not found or has been removed.</div>';
+              tbody.innerHTML =
+                '<tr><td colspan="6" class="no-data">Container not available</td></tr>';
+            } else {
+              errorDiv.innerHTML = `<div class="error-message">Error fetching processes: ${res.status}</div>`;
+              tbody.innerHTML =
+                '<tr><td colspan="6" class="no-data">Error loading processes</td></tr>';
+            }
+            return;
+          }
+
+          const data = await res.json();
+          errorDiv.innerHTML = "";
+
+          //check if the container is not running
+          if (data.status !== "running") {
+            tbody.innerHTML = `<tr><td colspan="6" class="no-data">Container is ${data.status}. Processes only available for running containers.</td></tr>`;
+            return;
+          }
+
+          //check if there are processes
+          if (!data.processes || data.processes.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="no-data">No processes found in the container.</td></tr>`;
+            return;
+          }
+
+          //build table rows
+          const rows = data.processes.map((proc) => {
+            const stateClass = getStateClass(proc.state);
+            return `
+              <tr>
+                <td>${proc.pid}</td>
+                <td>${proc.cpu_percent.toFixed(2)}%</td>
+                <td>${proc.mem_percent.toFixed(2)}%</td>
+                <td class="${stateClass}">${proc.state}</td>
+                <td>${proc.time}</td>
+                <td style="font-family: monospace; font-size: 12px;">${
+                  proc.command
+                }</td>
+              </tr>
+            `;
+          });
+
+          tbody.innerHTML = rows.join("");
+        } catch (err) {
+          console.error("Error loading processes:", err);
+          errorDiv.innerHTML = `<div class="error-message">Error loading processes: ${err.message}</div>`;
+          tbody.innerHTML =
+            '<tr><td colspan="6" class="no-data">Error loading processes</td></tr>';
+        }
+      }
       document
-        .getElementById("log-container-select")
+        .getElementById("process-container-select")
         .addEventListener("change", (e) => {
-          selectedContainerId = e.target.value;
-          if (selectedContainerId) {
-            loadLogs(selectedContainerId);
+          selectedProcessContainerId = e.target.value;
+          const tbody = document.querySelector("#processes-table tbody");
+
+          if (selectedProcessContainerId) {
+            tbody.innerHTML =
+              '<tr><td colspan="6" class="no-data">Loading processes...</td></tr>';
+            loadProcesses(selectedProcessContainerId);
           } else {
-            document.getElementById("logs-box").textContent = "";
+            tbody.innerHTML =
+              '<tr><td colspan="6" class="no-data">Select a container to view processes</td></tr>';
+            document.getElementById("process-error").innerHTML = "";
           }
         });
 
@@ -183,6 +323,10 @@
       setInterval(() => {
         if (selectedContainerId) {
           loadLogs(selectedContainerId);
+        }
+
+        if (selectedProcessContainerId) {
+          loadProcesses(selectedProcessContainerId);
         }
       }, 3000);
     </script>
