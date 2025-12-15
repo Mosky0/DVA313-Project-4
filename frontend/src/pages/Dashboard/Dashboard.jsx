@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { WidthProvider, Responsive } from "react-grid-layout/legacy";
+import { FaArrowsAlt, FaTimes, FaRedo, FaPlus } from "react-icons/fa";
 import ChartCard from "../../components/ui/ChartCard";
 import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
@@ -21,6 +23,8 @@ function debounce(func, wait) {
   };
 }
 
+const ResponsiveGridLayout = WidthProvider(Responsive);
+
 
 const Dashboard = React.memo(() => {
   const [system, setSystem] = useState(null);
@@ -28,13 +32,22 @@ const Dashboard = React.memo(() => {
   const [events, setEvents] = useState([]);
   const [loadingSys, setLoadingSys] = useState(true);
   const [loadingContainers, setLoadingContainers] = useState(true);
-  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [loadingEvents, setLoadingEvents] = useState(true); // eslint-disable-line no-unused-vars
   const [selectedCores, setSelectedCores] = useState({ systemCpu: true });
   const [selectAllCores, setSelectAllCores] = useState(false);
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
   const [systemCpuHistory, setSystemCpuHistory] = useState([]);
-
+  const [layouts, setLayouts] = useState({});
+  const [widgets, setWidgets] = useState([
+    { i: "topCards", x: 0, y: 0, w: 12, h: 2, minW: 4, minH: 2, moved: false },
+    { i: "cpuActivity", x: 0, y: 2, w: 6, h: 4, minW: 4, minH: 3, moved: false },
+    { i: "cpuTrend", x: 6, y: 2, w: 6, h: 4, minW: 4, minH: 3, moved: false },
+    { i: "memoryTrend", x: 0, y: 6, w: 6, h: 4, minW: 4, minH: 3, moved: false },
+    { i: "alerts", x: 6, y: 6, w: 6, h: 4, minW: 4, minH: 3, moved: false },
+    { i: "containers", x: 0, y: 10, w: 12, h: 5, minW: 6, minH: 4, moved: false }
+  ]);
+  const [removedWidgets, setRemovedWidgets] = useState([]);
 
   // Fetch system data
   useEffect(() => {
@@ -350,54 +363,103 @@ const Dashboard = React.memo(() => {
     setSelectedCores(newSelectedCores);
   }, [selectAllCores, system?.cpu?.per_core]);
 
+  const onLayoutChange = useCallback((layout, layouts) => {
+    setLayouts(layouts);
+  }, []);
 
-  return (
-    <div className="p-6 space-y-6">
-      {/* TOP CARDS */}
-      {!loadingSys && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl p-4 shadow">
-            <div className="text-xs text-gray-500">Load (1/5/15)</div>
-            <div className="text-lg font-semibold">
-              {system.load.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
-            </div>
-            <div className="text-xs text-gray-400 mt-1">
-              Processes: {system.total_processes} • Running: {system.running}
-            </div>
-          </div>
+  const removeWidget = (widgetId) => {
+    const widgetToRemove = widgets.find(w => w.i === widgetId);
+    if (widgetToRemove) {
+      setRemovedWidgets([...removedWidgets, widgetToRemove]);
+      setWidgets(widgets.filter(w => w.i !== widgetId));
+    }
+  };
 
+  const addWidget = (widgetId) => {
+    const widgetToAdd = removedWidgets.find(w => w.i === widgetId);
+    if (widgetToAdd) {
+      setWidgets([...widgets, widgetToAdd]);
+      setRemovedWidgets(removedWidgets.filter(w => w.i !== widgetId));
+    }
+  };
 
-          <div className="bg-white rounded-xl p-4 shadow flex items-center">
-            <CircleMetric value={Math.round(system.cpu.total_percent || 0)} label="System CPU" />
-          </div>
+  const resetDashboard = () => {
+    setWidgets([
+      { i: "topCards", x: 0, y: 0, w: 12, h: 2, minW: 4, minH: 2, moved: false },
+      { i: "cpuActivity", x: 0, y: 2, w: 6, h: 4, minW: 4, minH: 3, moved: false },
+      { i: "cpuTrend", x: 6, y: 2, w: 6, h: 4, minW: 4, minH: 3, moved: false },
+      { i: "memoryTrend", x: 0, y: 6, w: 6, h: 4, minW: 4, minH: 3, moved: false },
+      { i: "alerts", x: 6, y: 6, w: 6, h: 4, minW: 4, minH: 3, moved: false },
+      { i: "containers", x: 0, y: 10, w: 12, h: 5, minW: 6, minH: 4, moved: false }
+    ]);
+    setRemovedWidgets([]);
+  };
 
+  const WidgetHeader = ({ title, widgetId, canRemove = true }) => (
+    <div className="flex justify-between items-center mb-2 pb-2 border-b">
+      <h3 className="text-sm font-medium">{title}</h3>
+      <div className="flex space-x-2">
+        {canRemove && (
+          <button 
+            onClick={() => removeWidget(widgetId)}
+            className="text-gray-500 hover:text-red-500 transition-colors"
+            title="Remove widget"
+          >
+            <FaTimes />
+          </button>
+        )}
+        <span className="text-gray-400 cursor-move" title="Drag to move">
+          <FaArrowsAlt />
+        </span>
+      </div>
+    </div>
+  );
 
-          <div className="bg-white rounded-xl p-4 shadow">
-            <div className="text-xs text-gray-500">Memory</div>
-            <div className="mt-2 text-sm font-semibold">{memPct}%</div>
-            <div className="mt-3">
-              <div className="bg-gray-200 h-2 rounded overflow-hidden">
-                <div className="h-2 bg-[#2496ED]" style={{ width: `${memPct}%` }} />
+  const renderWidget = (widget) => {
+    switch (widget.i) {
+      case "topCards":
+        return !loadingSys && (
+          <div className="bg-white rounded-xl p-4 shadow h-full">
+            <WidgetHeader title="System Overview" widgetId={widget.i} canRemove={false} />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-full">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs text-gray-500">Load (1/5/15)</div>
+                <div className="text-lg font-semibold">
+                  {system.load.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  Processes: {system.total_processes} • Running: {system.running}
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-center">
+                <CircleMetric value={Math.round(system.cpu.total_percent || 0)} label="System CPU" />
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs text-gray-500">Memory</div>
+                <div className="mt-2 text-sm font-semibold">{memPct}%</div>
+                <div className="mt-3">
+                  <div className="bg-gray-200 h-2 rounded overflow-hidden">
+                    <div className="h-2 bg-[#2496ED]" style={{ width: `${memPct}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs text-gray-500">Uptime</div>
+                <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
+                <div className="text-xs text-gray-400 mt-1">Host</div>
               </div>
             </div>
           </div>
+        );
 
-
-          <div className="bg-white rounded-xl p-4 shadow">
-            <div className="text-xs text-gray-500">Uptime</div>
-            <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
-            <div className="text-xs text-gray-400 mt-1">Host</div>
-          </div>
-        </div>
-      )}
-
-
-      {/* CPU ACTIVITY (PER CORE) + TREND */}
-      {!loadingSys && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl shadow p-4">
-            <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
-            <div className="space-y-3">
+      case "cpuActivity":
+        return !loadingSys && (
+          <div className="bg-white rounded-2xl shadow p-4 h-full">
+            <WidgetHeader title="CPU Activity (per core)" widgetId={widget.i} />
+            <div className="space-y-3 h-[calc(100%-40px)] overflow-y-auto">
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -447,14 +509,13 @@ const Dashboard = React.memo(() => {
               )}
             </div>
           </div>
+        );
 
-
-          <div className="bg-white rounded-2xl shadow p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-medium">CPU trend (selected cores)</div>
-              <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} items</div>
-            </div>
-            <div className="h-40">
+      case "cpuTrend":
+        return !loadingSys && (
+          <div className="bg-white rounded-2xl shadow p-4 h-full">
+            <WidgetHeader title="CPU trend (selected cores)" widgetId={widget.i} />
+            <div className="h-[calc(100%-40px)]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={cpuTrendSeries}>
                   <XAxis dataKey="time" stroke="#888" />
@@ -470,7 +531,7 @@ const Dashboard = React.memo(() => {
                       strokeWidth={2}
                     />
                   )}
-                  {system.cpu.per_core.map((_, coreIdx) =>
+                  {system.cpu.per_core.map((_, coreIdx) => (
                     selectedCores[coreIdx] ? (
                       <Line
                         key={coreIdx}
@@ -481,30 +542,33 @@ const Dashboard = React.memo(() => {
                         strokeWidth={2}
                       />
                     ) : null
-                  )}
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
-        </div>
-      )}
+        );
 
-
-      {/* Memory trend + alerts */}
-      {!loadingSys && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl shadow p-4">
-            <ChartCard
-              title="System Memory trend"
-              data={memoryTrendSeries}
-              type="area"
-            />
+      case "memoryTrend":
+        return !loadingSys && (
+          <div className="bg-white rounded-2xl shadow p-4 h-full">
+            <WidgetHeader title="System Memory trend" widgetId={widget.i} />
+            <div className="h-[calc(100%-40px)]">
+              <ChartCard
+                title=""
+                data={memoryTrendSeries}
+                type="area"
+                hideTitle={true}
+              />
+            </div>
           </div>
+        );
 
-
-          <div className="bg-white rounded-2xl shadow p-4">
-            <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
-            <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
+      case "alerts":
+        return (
+          <div className="bg-white rounded-2xl shadow p-4 h-full">
+            <WidgetHeader title="Alerts & Recent Events" widgetId={widget.i} />
+            <div className="space-y-2 text-sm text-gray-700 h-[calc(100%-40px)] overflow-y-auto">
               {derivedAlerts.length === 0 ? (
                 <div className="text-xs text-gray-400">No alerts or events</div>
               ) : (
@@ -529,20 +593,75 @@ const Dashboard = React.memo(() => {
               )}
             </div>
           </div>
-        </div>
-      )}
+        );
 
+      case "containers":
+        return !loadingContainers && (
+          <div className="bg-white rounded-2xl shadow p-4 h-full">
+            <WidgetHeader title="Containers" widgetId={widget.i} />
+            <div className="h-[calc(100%-40px)] overflow-y-auto">
+              <ContainersTable containers={containers} />
+            </div>
+          </div>
+        );
 
-      {/* Containers table */}
-      {!loadingContainers && (
-        <div>
-          <ContainersTable containers={containers} />
-        </div>
-      )}
+      default:
+        return <div>Unknown widget</div>;
+    }
+  };
+
+  return (
+    <div className="p-6">
+      {/* Dashboard Controls */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <button
+          onClick={resetDashboard}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+        >
+          <FaRedo /> Reset Layout
+        </button>
+        
+        {removedWidgets.length > 0 && (
+          <div className="relative group">
+            <button className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors">
+              <FaPlus /> Add Widgets
+            </button>
+            <div className="absolute left-0 mt-1 w-48 bg-white rounded-md shadow-lg py-1 hidden group-hover:block z-10">
+              {removedWidgets.map(widget => (
+                <button
+                  key={widget.i}
+                  onClick={() => addWidget(widget.i)}
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 capitalize"
+                >
+                  {widget.i.replace(/([A-Z])/g, ' $1').trim()}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <ResponsiveGridLayout
+        className="layout"
+        layouts={{ lg: widgets }}
+        onLayoutChange={onLayoutChange}
+        breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+        cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+        rowHeight={60}
+        isDraggable={true}
+        isResizable={true}
+        useCSSTransforms={true}
+      >
+        {widgets.map(widget => (
+          <div key={widget.i} data-grid={widget} className="relative">
+            {renderWidget(widget)}
+          </div>
+        ))}
+      </ResponsiveGridLayout>
     </div>
   );
 });
 
-
 export default Dashboard;
+
 
