@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaChevronUp, FaChevronDown, FaChevronRight } from "react-icons/fa";
+import { FaChevronUp, FaChevronDown, FaChevronRight ,FaDocker } from "react-icons/fa";
 import { API_BASE_URL } from "../../config"; // adjust path if needed
 import { containerCache } from "../../utils/cache";
 
@@ -19,27 +19,24 @@ export default function Containers() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ---- FETCH CONTAINERS FROM BACKEND ----
+  // ---- POLL CONTAINERS + STATS DYNAMICALLY ----
   useEffect(() => {
-    setLoading(true);
-    setError("");
+    let mounted = true;
 
-    const containersCacheKey = 'containers_list';
-    const cachedContainers = containerCache.get(containersCacheKey);
-    
-    const fetchContainers = cachedContainers ? 
-      Promise.resolve(cachedContainers) : 
-      fetch(`${API_BASE_URL}/containers`).then(res => {
+    const pollContainers = async () => {
+      try {
+        // Fetch containers list
+        const res = await fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to load containers");
-        return res.json();
-      });
+        const data = await res.json();
 
-    fetchContainers
-      .then((data) => {
-        if (!cachedContainers) {
-          containerCache.set(containersCacheKey, data);
-        }
-       
+        if (!mounted) return;
+
+        // Update cache
+        const containersCacheKey = 'containers_list';
+        containerCache.set(containersCacheKey, data);
+
+        // Map basic info
         const mapped = data.map((c) => ({
           id: c.id,
           name: c.name,
@@ -47,58 +44,57 @@ export default function Containers() {
           mem: "-", 
           status: normalizeStatus(c.status),
         }));
-        setRows(mapped);
-        setLoading(false);
 
-        // Fetch container metrics
-        mapped.forEach(container => {
-          const statsCacheKey = `container_stats_${container.id}`;
-          const cachedStats = containerCache.get(statsCacheKey);
-          
-          if (cachedStats) {
-            setRows(prevRows => 
-              prevRows.map(row => 
-                row.id === container.id 
-                  ? { 
-                      ...row, 
-                      cpu: cachedStats.cpu_percent !== undefined ? `${cachedStats.cpu_percent.toFixed(2)}%` : "N/A",
-                      mem: cachedStats.mem_usage || "N/A"
-                    } 
-                  : row
-              )
-            );
-          } else {
-            fetch(`${API_BASE_URL}/containers/${container.id}/stats`)
-              .then(res => {
-                if (!res.ok) throw new Error(`Failed to load stats for ${container.id}`);
-                return res.json();
-              })
-              .then(stats => {
-                containerCache.set(statsCacheKey, stats);
-                
-                setRows(prevRows => 
-                  prevRows.map(row => 
-                    row.id === container.id 
-                      ? { 
-                          ...row, 
-                          cpu: stats.cpu_percent !== undefined ? `${stats.cpu_percent.toFixed(2)}%` : "N/A",
-                          mem: stats.mem_usage || "N/A"
-                        } 
-                      : row
-                  )
-                );
-              })
-              .catch(err => {
-                console.error(`Failed to fetch stats for container ${container.id}:`, err);
-              });
-          }
-        });
-      })
-      .catch((err) => {
-        console.error(err);
-        setError("Could not load containers.");
-        setLoading(false);
-      });
+        // Fetch stats for ALL containers in parallel
+        const statsPromises = mapped.map((container) =>
+          fetch(`${API_BASE_URL}/containers/${container.id}/stats`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((stats) => {
+              if (!stats) return null;
+              // Update cache
+              const statsCacheKey = `container_stats_${container.id}`;
+              containerCache.set(statsCacheKey, stats);
+              return {
+                id: container.id,
+                cpu: stats.cpu_percent !== undefined ? `${(stats.cpu_percent * 100).toFixed(2)}%` : "N/A", // Multiply by 100 like Dashboard
+                mem: stats.mem_usage || "N/A",
+              };
+            })
+            .catch(() => ({
+              id: container.id,
+              cpu: "N/A",
+              mem: "N/A",
+            }))
+        );
+
+        const statsResults = await Promise.all(statsPromises);
+
+        // Update rows with stats 
+        if (mounted) {
+          const updatedRows = mapped.map((row) => {
+            const stats = statsResults.find((s) => s && s.id === row.id);
+            return stats ? { ...row, ...stats } : row;
+          });
+          setRows(updatedRows);
+          setLoading(false);
+          setError("");
+        }
+      } catch (err) {
+        console.error("Poll containers error:", err);
+        if (mounted) {
+          setError("Could not load containers.");
+          setLoading(false);
+        }
+      }
+    };
+
+    pollContainers();
+    const iv = setInterval(pollContainers, 3000); // Poll every 3 seconds
+
+    return () => {
+      mounted = false;
+      clearInterval(iv);
+    };
   }, []);
 
   // ---- SORT HANDLER ----
@@ -134,15 +130,20 @@ export default function Containers() {
     return valA < valB ? 1 : -1;
   });
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <div className="bg-white rounded-xl shadow p-4 text-sm text-gray-500">
-          Loading containers…
+   if (loading) {
+  return (
+    <div className="p-6 flex items-center justify-center min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
+      <div className="flex flex-col items-center gap-6 bg-white p-8 rounded-2xl shadow-lg">
+        <div className="relative">
+          <FaDocker className="text-6xl text-blue-600 animate-pulse" />
+          <div className="absolute inset-0 w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mt-2"></div>
         </div>
+        <div className="text-lg font-semibold text-gray-700">Loading containers…</div>
+        <div className="text-sm text-gray-500">Fetching latest data</div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div className="p-6">
