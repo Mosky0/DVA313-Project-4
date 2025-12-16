@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import ChartCard from "../../components/ui/ChartCard";
 import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
@@ -34,6 +34,10 @@ const Dashboard = React.memo(() => {
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
   const [systemCpuHistory, setSystemCpuHistory] = useState([]);
+  const [backendStatus, setBackendStatus] = useState("connected");
+  const wasDisconnected = useRef(false);
+
+
 
 
   // Fetch system data
@@ -65,7 +69,11 @@ const Dashboard = React.memo(() => {
             console.warn("Failed to fetch latest system metrics:", e);
           }
          
-          if (mounted) setSystem(sysData);
+         if (mounted) {
+        setSystem(sysData);
+        
+       }
+
         }
         const historyData = historyRes.ok ? await historyRes.json() : null;
         if (historyData) {
@@ -76,7 +84,8 @@ const Dashboard = React.memo(() => {
           }
         }
       } catch (e) {
-        console.error("fetchSystemData error:", e);
+      console.error("fetchSystemData error:", e);
+      
       } finally {
         if (mounted) setLoadingSys(false);
       }
@@ -186,8 +195,65 @@ const Dashboard = React.memo(() => {
     fetchEventsData();
   }, []);
 
+  useEffect(() => {
+  let mounted = true;
+  let lastStatus = null;
 
-  const cpuTrendSeries = useMemo(() => {
+  const checkBackend = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/system`, {
+        cache: "no-store",
+      });
+
+      if (!mounted) return;
+
+  if (res.ok) {
+    if (lastStatus === "disconnected") {
+     wasDisconnected.current = true;
+     setBackendStatus("connected");
+     }
+     lastStatus = "connected";
+}
+
+      else {
+        if (lastStatus !== "disconnected") {
+          setBackendStatus("disconnected");
+          lastStatus = "disconnected";
+        }
+      }
+    } catch (err) {
+      if (!mounted) return;
+      if (lastStatus !== "disconnected") {
+       wasDisconnected.current = true;
+       setBackendStatus("disconnected");
+       lastStatus = "disconnected";
+    }
+
+    }
+  };
+
+   checkBackend();
+
+  const interval = setInterval(checkBackend, 5000);
+
+  return () => {
+    mounted = false;
+    clearInterval(interval);
+  };
+}, []);
+
+useEffect(() => {
+  if (backendStatus === "connected") {
+    const t = setTimeout(() => {
+      setBackendStatus("unknown");
+    }, 2000);
+    return () => clearTimeout(t);
+  }
+}, [backendStatus]);
+
+
+
+   const cpuTrendSeries = useMemo(() => {
     const hasSelectedCores = Object.keys(selectedCores).some(key => selectedCores[key]);
     const coreKeys = Object.keys(cpuCoreHistory).filter(coreIdx => selectedCores[coreIdx]);
    
@@ -353,9 +419,24 @@ const Dashboard = React.memo(() => {
 
   return (
     <div className="p-6 space-y-6">
+    {backendStatus === "disconnected" && (
+  <div className="rounded-lg px-4 py-3 text-sm font-medium bg-red-50 text-red-700 border border-red-200">
+    Backend disconnected. Trying to reconnect…
+  </div>
+)}
+
+{backendStatus === "connected" && wasDisconnected.current && (
+  <div className="rounded-lg px-4 py-3 text-sm font-medium bg-green-50 text-green-700 border border-green-200">
+    Backend reconnected successfully
+  </div>
+)}
+
+
+
       {/* TOP CARDS */}
-      {!loadingSys && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+     {!loadingSys && system && (
+     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+
           <div className="bg-white rounded-xl p-4 shadow">
             <div className="text-xs text-gray-500">Load (1/5/15)</div>
             <div className="text-lg font-semibold">
@@ -393,8 +474,9 @@ const Dashboard = React.memo(() => {
 
 
       {/* CPU ACTIVITY (PER CORE) + TREND */}
-      {!loadingSys && (
+      {!loadingSys && system && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
           <div className="bg-white rounded-2xl shadow p-4">
             <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
             <div className="space-y-3">
@@ -491,8 +573,9 @@ const Dashboard = React.memo(() => {
 
 
       {/* Memory trend + alerts */}
-      {!loadingSys && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+     {!loadingSys && system && (
+     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
           <div className="bg-white rounded-2xl shadow p-4">
             <ChartCard
               title="System Memory trend"
@@ -545,4 +628,3 @@ const Dashboard = React.memo(() => {
 
 
 export default Dashboard;
-
