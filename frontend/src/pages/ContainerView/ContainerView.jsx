@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { useParams, useLocation } from "react-router-dom";
 import {
@@ -21,7 +21,7 @@ export default function ContainerView() {
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
-
+  const statsIntervalRef = useRef(null);
   const [cpuHistory, setCpuHistory] = useState([]);
 
   const [logs, setLogs] = useState([]);
@@ -34,7 +34,6 @@ export default function ContainerView() {
 
   // --------- FETCH STATS (poll every 5s) ----------
   useEffect(() => {
-    let intervalId;
     const TOAST_ID = "status-error-container-view";
     const POL_TIME_MS = 3000;
 
@@ -64,7 +63,8 @@ export default function ContainerView() {
             setStatsError("Container deleted or removed.");
             setStatsLoading(false);
 
-            clearInterval(intervalId);
+            if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+            statsIntervalRef.current = null;
             return payload;
           } else if (!res.ok) {
             const message =
@@ -86,6 +86,14 @@ export default function ContainerView() {
           setStatsError("");
           setStats(data);
           setStatsLoading(false);
+
+          // LIVE CPU HISTORY: add a point each poll so the chart updates dynamically
+          const cpu = Number(data?.cpu_percent ?? 0);
+          const point = { time: new Date().toLocaleTimeString(), value: cpu };
+          setCpuHistory((prev) => {
+            const next = [...prev, point];
+            return next.slice(-30); // keep last 30 points
+          });
         })
         .catch((err) => {
           console.error(err);
@@ -95,9 +103,12 @@ export default function ContainerView() {
     };
 
     fetchStats();
-    intervalId = setInterval(fetchStats, POL_TIME_MS);
+statsIntervalRef.current = setInterval(fetchStats, POL_TIME_MS);
 
-    return () => clearInterval(intervalId);
+return () => {
+  if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+  statsIntervalRef.current = null;
+};
   }, [id]);
 
   // --------- FETCH STORED METRICS ----------
