@@ -6,6 +6,9 @@ import { API_BASE_URL } from "../../config";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
+import GridLayout from "react-grid-layout";
+import "./../../../node_modules/react-grid-layout/css/styles.css";
+import "./../../../node_modules/react-resizable/css/styles.css";
 
 
 // Debounce function to limit the rate of function execution
@@ -35,10 +38,62 @@ const Dashboard = React.memo(() => {
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
   const [systemCpuHistory, setSystemCpuHistory] = useState([]);
   const [backendStatus, setBackendStatus] = useState("connected");
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [layout, setLayout] = useState([]);
+  const [width, setWidth] = useState(window.innerWidth - 100);
   const wasDisconnected = useRef(false);
 
+  // Define default layout
+  const defaultLayout = [
+    { i: 'load-card', x: 0, y: 0, w: 1, h: 1, static: true },
+    { i: 'cpu-card', x: 1, y: 0, w: 1, h: 1, static: true },
+    { i: 'memory-card', x: 2, y: 0, w: 1, h: 1, static: true },
+    { i: 'uptime-card', x: 3, y: 0, w: 1, h: 1, static: true },
+    
+    { i: 'cpu-activity-chart', x: 0, y: 1, w: 2, h: 2, static: true },
+    { i: 'cpu-trend-chart', x: 2, y: 1, w: 2, h: 2, static: true },
+    
+    { i: 'memory-trend-chart', x: 0, y: 3, w: 2, h: 2, static: true },
+    { i: 'alerts-panel', x: 2, y: 3, w: 2, h: 2, static: true },
+    
+    { i: 'containers-table', x: 0, y: 5, w: 4, h: 3, static: true }
+  ];
 
+  useEffect(() => {
+    const savedLayout = localStorage.getItem('dashboard_layout_v4');
+    if (savedLayout) {
+      try {
+        setLayout(JSON.parse(savedLayout));
+      } catch (e) {
+        console.error('Failed to parse saved layout:', e);
+        setLayout(defaultLayout);
+      }
+    } else {
+      setLayout(defaultLayout);
+    }
+  }, []);
 
+  useEffect(() => {
+    if (layout.length > 0) {
+      localStorage.setItem('dashboard_layout_v4', JSON.stringify(layout));
+    }
+  }, [layout]);
+
+  const onLayoutChange = (newLayout) => {
+    setLayout(newLayout);
+  };
+
+  const resetToDefaultLayout = () => {
+    setLayout(defaultLayout);
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWidth(window.innerWidth - 100);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Fetch system data
   useEffect(() => {
@@ -500,13 +555,40 @@ useEffect(() => {
   </div>
 )}
 
+      {/* Edit Button */}
+      <div className="flex justify-end mb-4">
+        <button 
+          onClick={() => setIsEditMode(!isEditMode)}
+          className={`px-4 py-2 rounded-md text-sm font-medium ${isEditMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+        >
+          {isEditMode ? 'Exit Edit Mode' : 'Edit Layout'}
+        </button>
+        {isEditMode && (
+          <button 
+            onClick={resetToDefaultLayout}
+            className="ml-2 px-4 py-2 rounded-md text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300"
+          >
+            Reset Layout
+          </button>
+        )}
+      </div>
 
-
-      {/* TOP CARDS */}
-     {!loadingSys && system && (
-     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-          <div className="bg-white rounded-xl p-4 shadow">
+      {/* Grid Layout */}
+      <GridLayout
+        className="layout"
+        layout={layout}
+        cols={4}
+        rowHeight={150}
+        width={width}
+        isDraggable={isEditMode}
+        isResizable={isEditMode}
+        onLayoutChange={onLayoutChange}
+        margin={[16, 16]}
+        containerPadding={[0, 0]}
+      >
+        {/* TOP CARDS */}
+        {!loadingSys && system && (
+          <div key="load-card" className="bg-white rounded-xl p-4 shadow">
             <div className="text-xs text-gray-500">Load (1/5/15)</div>
             <div className="text-lg font-semibold">
               {system.load.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
@@ -515,14 +597,16 @@ useEffect(() => {
               Processes: {system.total_processes} • Running: {system.running}
             </div>
           </div>
+        )}
 
-
-          <div className="bg-white rounded-xl p-4 shadow flex items-center">
+        {!loadingSys && system && (
+          <div key="cpu-card" className="bg-white rounded-xl p-4 shadow flex items-center">
             <CircleMetric value={Math.round(system.cpu.total_percent || 0)} label="System CPU" />
           </div>
+        )}
 
-
-          <div className="bg-white rounded-xl p-4 shadow">
+        {!loadingSys && system && (
+          <div key="memory-card" className="bg-white rounded-xl p-4 shadow">
             <div className="text-xs text-gray-500">Memory</div>
             <div className="mt-2 text-sm font-semibold">{memPct}%</div>
             <div className="mt-3">
@@ -531,22 +615,21 @@ useEffect(() => {
               </div>
             </div>
           </div>
+        )}
 
-
-          <div className="bg-white rounded-xl p-4 shadow">
+        {!loadingSys && system && (
+          <div key="uptime-card" className="bg-white rounded-xl p-4 shadow">
             <div className="text-xs text-gray-500">Uptime</div>
             <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
             <div className="text-xs text-gray-400 mt-1">Host</div>
           </div>
-        </div>
-      )}
+        )}
 
 
       {/* CPU ACTIVITY (PER CORE) + TREND */}
       {!loadingSys && system && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          <div className="bg-white rounded-2xl shadow p-4">
+        <>
+          <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4">
             <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
             <div className="space-y-3">
               <div className="flex items-center gap-3">
@@ -599,8 +682,7 @@ useEffect(() => {
             </div>
           </div>
 
-
-          <div className="bg-white rounded-2xl shadow p-4">
+          <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium">CPU trend (selected cores)</div>
               <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} items</div>
@@ -637,15 +719,14 @@ useEffect(() => {
               </ResponsiveContainer>
             </div>
           </div>
-        </div>
+        </>
       )}
 
 
       {/* Memory trend + alerts */}
      {!loadingSys && system && (
-     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          <div className="bg-white rounded-2xl shadow p-4">
+        <>
+          <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-4">
             <ChartCard
               title="System Memory trend"
               data={memoryTrendSeries}
@@ -653,8 +734,7 @@ useEffect(() => {
             />
           </div>
 
-
-          <div className="bg-white rounded-2xl shadow p-4">
+          <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4">
             <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
             <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
               {derivedAlerts.length === 0 ? (
@@ -681,16 +761,17 @@ useEffect(() => {
               )}
             </div>
           </div>
-        </div>
+        </>
       )}
 
 
       {/* Containers table */}
       {!loadingContainers && (
-        <div>
+        <div key="containers-table">
           <ContainersTable containers={containers} />
         </div>
       )}
+    </GridLayout>
     </div>
   );
 });
