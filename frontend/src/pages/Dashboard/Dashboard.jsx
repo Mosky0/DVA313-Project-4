@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import ChartCard from "../../components/ui/ChartCard";
 import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
@@ -7,42 +7,59 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 
-export default function Dashboard() {
+
+// Debounce function to limit the rate of function execution
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+
+const Dashboard = React.memo(() => {
   const [system, setSystem] = useState(null);
   const [containers, setContainers] = useState([]);
   const [events, setEvents] = useState([]);
   const [loadingSys, setLoadingSys] = useState(true);
-  const [selectedCores, setSelectedCores] = useState({ systemCpu: true }); // Add systemCpu to selected cores and make it true by default
+  const [loadingContainers, setLoadingContainers] = useState(true);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [selectedCores, setSelectedCores] = useState({ systemCpu: true });
   const [selectAllCores, setSelectAllCores] = useState(false);
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
-  const [systemCpuHistory, setSystemCpuHistory] = useState([]); // Add state for system CPU history
+  const [systemCpuHistory, setSystemCpuHistory] = useState([]);
+  const [backendStatus, setBackendStatus] = useState("connected");
+  const wasDisconnected = useRef(false);
 
-  // SINGLE UNIFIED POLLing effect for system, containers, stats, events
+
+
+
+  // Fetch system data
   useEffect(() => {
     let mounted = true;
 
-    const pollAllData = async () => {
+
+    const fetchSystemData = async () => {
       try {
-        const [
-          sysRes,
-          historyRes,
-          contRes,
-          latestSysRes,
-          evRes
-        ] = await Promise.all([
+        const [sysRes, historyRes, latestSysRes, contRes, evRes] = await Promise.all([
           fetch(`${API_BASE_URL}/system`),
           fetch(`${API_BASE_URL}/system/metrics/history`),
-          fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" }),
           fetch(`${API_BASE_URL}/system/metrics/latest`),
           fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" })
         ]);
+
 
         const sysData = sysRes.ok ? await sysRes.json() : null;
         if (sysData) {
           try {
             const latestSysData = latestSysRes.ok ? await latestSysRes.json() : null;
-            
+           
             if (latestSysData && latestSysData.systemCpu) {
               sysData.cpu = {
                 ...sysData.cpu,
@@ -52,15 +69,19 @@ export default function Dashboard() {
           } catch (e) {
             console.warn("Failed to fetch latest system metrics:", e);
           }
-          
-          if (mounted) setSystem(sysData);
+         
+         if (mounted) {
+        setSystem(sysData);
+        
+       }
+
         }
         const historyData = historyRes.ok ? await historyRes.json() : null;
         if (historyData) {
           if (mounted) {
             setCPUCoreHistory(historyData.cpuCoreHistories || {});
             setSystemMemoryHistory(historyData.memoryHistory || []);
-            setSystemCpuHistory(historyData.systemCpuHistory || []); // Set system CPU history
+            setSystemCpuHistory(historyData.systemCpuHistory || []);
           }
         }
 
@@ -69,7 +90,6 @@ export default function Dashboard() {
           
           if (!mounted || !Array.isArray(contListData)) return;
 
-          // Map basic info
           const mapped = contListData.map((c) => ({
             id: c.id || c.Id || "",
             name: c.name || c.Name || c.id || "",
@@ -85,7 +105,6 @@ export default function Dashboard() {
               
               if (!stats) return null;
               
-              // CPU value comes as decimal multiply by 100 to get percentage
               const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
               const cpuValue = rawCpu < 10 ? rawCpu * 100 : rawCpu;
               
@@ -104,7 +123,6 @@ export default function Dashboard() {
 
           const statsResults = await Promise.all(statsPromises);
 
-          // Update all containers at once with stats
           if (mounted) {
             const updated = mapped.map((c) => {
               const stats = statsResults.find((s) => s && s.id === c.id);
@@ -113,23 +131,25 @@ export default function Dashboard() {
             setContainers(updated);
           }
         }
-
         if (evRes.ok) {
           const evData = await evRes.json();
           if (mounted) setEvents(Array.isArray(evData) ? evData : []);
         } else {
-          // 404 or other error / clear events
           if (mounted) setEvents([]);
         }
+
       } catch (e) {
-        console.error("pollAllData error:", e);
+      console.error("fetchSystemData error:", e);
+      
       } finally {
-        if (mounted) setLoadingSys(false);
+        if (mounted) 
+          setLoadingSys(false);
+          setLoadingEvents(false);
       }
     };
 
-    pollAllData();
-    const iv = setInterval(pollAllData, 5000); 
+    fetchSystemData();
+    const iv = setInterval(fetchSystemData, 5000); 
 
     return () => {
       mounted = false;
@@ -137,13 +157,177 @@ export default function Dashboard() {
     };
   }, []);
 
-  // CPU TREND FROM RING BUFFER
-  const cpuTrendSeries = useMemo(() => {
+
+  // Fetch containers data
+  useEffect(() => {
+    let mounted = true;
+
+
+    const fetchContainersData = async () => {
+      try {
+        const contRes = await fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" });
+
+
+        if (contRes.ok) {
+          const contListData = await contRes.json();
+         
+          if (!mounted || !Array.isArray(contListData)) return;
+
+
+          const mapped = contListData.map((c) => ({
+            id: c.id || c.Id || "",
+            name: c.name || c.Name || c.id || "",
+            cpu_percent: 0,
+            mem_usage: "—",
+            status: (c.status || c.Status || "").toString().toLowerCase(),
+          }));
+
+
+          const statsPromises = mapped.map(async (container) => {
+            try {
+              const res = await fetch(`${API_BASE_URL}/containers/${container.id}/stats`);
+              const stats = res.ok ? await res.json() : null;
+             
+              if (!stats) return null;
+             
+              const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
+              const cpuValue = rawCpu;
+             
+              const result = {
+                id: container.id,
+                cpu_percent: Number(cpuValue) || 0,
+                mem_usage: stats.mem_usage ?? stats.MemoryUsage ?? stats.memory ?? "—",
+              };
+             
+              return result;
+            } catch (err) {
+              console.error(`Stats fetch error for ${container.id}:`, err);
+              return null;
+            }
+          });
+
+
+          const statsResults = await Promise.all(statsPromises);
+
+
+          if (mounted) {
+            const updated = mapped.map((c) => {
+              const stats = statsResults.find((s) => s && s.id === c.id);
+              return stats ? { ...c, ...stats } : c;
+            });
+            setContainers(updated);
+          }
+        }
+      } catch (e) {
+        console.error("fetchContainersData error:", e);
+      } finally {
+        if (mounted) setLoadingContainers(false);
+        
+      }
+    };
+
+
+    fetchContainersData();
+    const containerInterval = setInterval(fetchContainersData, 5000); 
+    return () => {
+      mounted = false;
+      clearInterval(containerInterval);
+    };
+  }, []);
+
+
+  // Fetch events data
+  useEffect(() => {
+    let mounted = true;
+
+
+    const fetchEventsData = async () => {
+      try {
+        const evRes = await fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" });
+
+
+        if (evRes.ok) {
+          const evData = await evRes.json();
+          if (mounted) setEvents(Array.isArray(evData) ? evData : []);
+        } else {
+          if (mounted) setEvents([]);
+        }
+      } catch (e) {
+        console.error("fetchEventsData error:", e);
+      } finally {
+        if (mounted) setLoadingEvents(false);
+      }
+    };
+
+
+    fetchEventsData();
+    
+  }, []);
+
+  useEffect(() => {
+  let mounted = true;
+  let lastStatus = null;
+
+  const checkBackend = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/system`, {
+        cache: "no-store",
+      });
+
+      if (!mounted) return;
+
+  if (res.ok) {
+    if (lastStatus === "disconnected") {
+     wasDisconnected.current = true;
+     setBackendStatus("connected");
+     }
+     lastStatus = "connected";
+}
+
+      else {
+        if (lastStatus !== "disconnected") {
+          setBackendStatus("disconnected");
+          lastStatus = "disconnected";
+        }
+      }
+    } catch (err) {
+      if (!mounted) return;
+      if (lastStatus !== "disconnected") {
+       wasDisconnected.current = true;
+       setBackendStatus("disconnected");
+       lastStatus = "disconnected";
+    }
+
+    }
+  };
+
+   checkBackend();
+
+  const interval = setInterval(checkBackend, 5000);
+
+  return () => {
+    mounted = false;
+    clearInterval(interval);
+  };
+}, []);
+
+useEffect(() => {
+  if (backendStatus === "connected") {
+    const t = setTimeout(() => {
+      setBackendStatus("unknown");
+    }, 2000);
+    return () => clearTimeout(t);
+  }
+}, [backendStatus]);
+
+
+
+   const cpuTrendSeries = useMemo(() => {
     const hasSelectedCores = Object.keys(selectedCores).some(key => selectedCores[key]);
     const coreKeys = Object.keys(cpuCoreHistory).filter(coreIdx => selectedCores[coreIdx]);
-    
+   
     if (!hasSelectedCores) return [];
-    
+   
     let referenceData, startIndex;
     if (selectedCores.systemCpu && systemCpuHistory.length > 0) {
       referenceData = systemCpuHistory;
@@ -153,17 +337,17 @@ export default function Dashboard() {
     } else {
       return [];
     }
-    
+   
     const maxLength = Math.min(referenceData.length, 50);
     startIndex = referenceData.length - maxLength;
-    
+   
     return referenceData.slice(startIndex).map((entry, idx) => {
-      const point = { 
-        time: entry.timestamp 
-          ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+      const point = {
+        time: entry.timestamp
+          ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
           : `Point ${idx}`
       };
-      
+     
       if (selectedCores.systemCpu && systemCpuHistory.length > 0) {
         const systemDataIndex = startIndex + idx;
         if (systemDataIndex >= 0 && systemDataIndex < systemCpuHistory.length) {
@@ -172,21 +356,22 @@ export default function Dashboard() {
           point['System CPU'] = 0;
         }
       }
-      
+     
       coreKeys.forEach(coreIdx => {
         const coreData = cpuCoreHistory[coreIdx];
         const dataIndex = startIndex + idx;
-        
+       
         if (dataIndex >= 0 && dataIndex < coreData.length) {
           point[`Core ${coreIdx}`] = coreData[dataIndex].value;
         } else {
           point[`Core ${coreIdx}`] = 0;
         }
       });
-      
+     
       return point;
     });
   }, [selectedCores, cpuCoreHistory, systemCpuHistory]);
+
 
   const memPct = useMemo(() => {
     if (!system) return 0;
@@ -196,19 +381,21 @@ export default function Dashboard() {
     return Math.round((used / limit) * 100);
   }, [system]);
 
+
   const memoryTrendSeries = useMemo(() => {
     if (!systemMemoryHistory || systemMemoryHistory.length === 0) return [];
-    
+   
     const maxLength = Math.min(systemMemoryHistory.length, 50);
     const startIndex = systemMemoryHistory.length - maxLength;
-    
+   
     return systemMemoryHistory.slice(startIndex).map((entry, idx) => ({
-      time: entry.timestamp 
-        ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+      time: entry.timestamp
+        ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
         : `t-${maxLength - idx - 1}`,
       value: entry.value
     }));
   }, [systemMemoryHistory]);
+
 
   const derivedAlerts = useMemo(() => {
     const parseMemPercent = (memStr) => {
@@ -225,7 +412,9 @@ export default function Dashboard() {
       }
     };
 
+
     const alerts = [];
+
 
     if (events && events.length) {
       events.slice(0, 10).forEach((ev) => {
@@ -236,6 +425,7 @@ export default function Dashboard() {
         });
       });
     }
+
 
     containers.forEach((c) => {
       if (!c) return;
@@ -253,6 +443,7 @@ export default function Dashboard() {
       }
     });
 
+
     const seen = new Set();
     const unique = [];
     for (const a of alerts) {
@@ -266,24 +457,25 @@ export default function Dashboard() {
     return unique;
   }, [events, containers]);
 
+
   const handleCoreToggle = useCallback((coreIdx) => {
     setSelectedCores((prev) => ({
       ...prev,
       [coreIdx]: !prev[coreIdx]
     }));
   }, []);
-  
+ 
   const handleSystemCpuToggle = useCallback(() => {
     setSelectedCores((prev) => ({
       ...prev,
       systemCpu: !prev.systemCpu
     }));
   }, []);
-  
+ 
   const handleSelectAll = useCallback(() => {
     const newSelectAll = !selectAllCores;
     setSelectAllCores(newSelectAll);
-    
+   
     const newSelectedCores = { systemCpu: true };
     if (system?.cpu?.per_core) {
       system.cpu.per_core.forEach((_, i) => {
@@ -293,195 +485,215 @@ export default function Dashboard() {
     setSelectedCores(newSelectedCores);
   }, [selectAllCores, system?.cpu?.per_core]);
 
-  if (loadingSys) {
-    return (
-      <div className="p-6">
-        <div className="bg-white rounded-2xl shadow p-4 text-sm text-gray-500">
-          Loading dashboard…
-        </div>
-      </div>
-    );
-  }
 
-  const load = system?.load || [0, 0, 0];
-  const uptime = system?.uptime || "N/A";
-  const totalProcesses = system?.total_processes ?? 0;
-  const running = system?.running ?? 0;
-  const cpuPerCore = system?.cpu?.per_core || [];
-  const systemCpu = system?.cpu?.total_percent || 0;
-  
   return (
     <div className="p-6 space-y-6">
+    {backendStatus === "disconnected" && (
+  <div className="rounded-lg px-4 py-3 text-sm font-medium bg-red-50 text-red-700 border border-red-200">
+    Backend disconnected. Trying to reconnect…
+  </div>
+)}
+
+{backendStatus === "connected" && wasDisconnected.current && (
+  <div className="rounded-lg px-4 py-3 text-sm font-medium bg-green-50 text-green-700 border border-green-200">
+    Backend reconnected successfully
+  </div>
+)}
+
+
+
       {/* TOP CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 shadow">
-          <div className="text-xs text-gray-500">Load (1/5/15)</div>
-          <div className="text-lg font-semibold">
-            {load.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Processes: {totalProcesses} • Running: {running}
-          </div>
-        </div>
+     {!loadingSys && system && (
+     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 
-        <div className="bg-white rounded-xl p-4 shadow flex items-center">
-          <CircleMetric value={Math.round(systemCpu || 0)} label="System CPU" />
-        </div>
-
-        <div className="bg-white rounded-xl p-4 shadow">
-          <div className="text-xs text-gray-500">Memory</div>
-          <div className="mt-2 text-sm font-semibold">{memPct}%</div>
-          <div className="mt-3">
-            <div className="bg-gray-200 h-2 rounded overflow-hidden">
-              <div className="h-2 bg-[#2496ED]" style={{ width: `${memPct}%` }} />
+          <div className="bg-white rounded-xl p-4 shadow">
+            <div className="text-xs text-gray-500">Load (1/5/15)</div>
+            <div className="text-lg font-semibold">
+              {system.load.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              Processes: {system.total_processes} • Running: {system.running}
             </div>
           </div>
-        </div>
 
-        <div className="bg-white rounded-xl p-4 shadow">
-          <div className="text-xs text-gray-500">Uptime</div>
-          <div className="mt-2 text-lg font-semibold">{uptime}</div>
-          <div className="text-xs text-gray-400 mt-1">Host</div>
+
+          <div className="bg-white rounded-xl p-4 shadow flex items-center">
+            <CircleMetric value={Math.round(system.cpu.total_percent || 0)} label="System CPU" />
+          </div>
+
+
+          <div className="bg-white rounded-xl p-4 shadow">
+            <div className="text-xs text-gray-500">Memory</div>
+            <div className="mt-2 text-sm font-semibold">{memPct}%</div>
+            <div className="mt-3">
+              <div className="bg-gray-200 h-2 rounded overflow-hidden">
+                <div className="h-2 bg-[#2496ED]" style={{ width: `${memPct}%` }} />
+              </div>
+            </div>
+          </div>
+
+
+          <div className="bg-white rounded-xl p-4 shadow">
+            <div className="text-xs text-gray-500">Uptime</div>
+            <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
+            <div className="text-xs text-gray-400 mt-1">Host</div>
+          </div>
         </div>
-      </div>
+      )}
+
 
       {/* CPU ACTIVITY (PER CORE) + TREND */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow p-4">
-          <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={selectAllCores}
-                onChange={handleSelectAll}
-                className="w-4 h-4 cursor-pointer"
-              />
-              <div className="w-12 text-xs text-gray-600">All Cores</div>
-              <div className="flex-1"></div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={!!selectedCores.systemCpu}
-                onChange={handleSystemCpuToggle}
-                className="w-4 h-4 cursor-pointer"
-              />
-              <div className="text-xs text-gray-600">System CPU</div>
-            </div>
-            
-            {cpuPerCore.length ? (
-              cpuPerCore.map((v, i) => {
-                const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0 
-                  ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value 
-                  : v;
-                return (
-                  <div key={i} className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={!!selectedCores[i]}
-                      onChange={() => handleCoreToggle(i)}
-                      className="w-4 h-4 cursor-pointer"
-                    />
-                    <div className="w-12 text-xs text-gray-600">CPU {i}</div>
-                    <div className="flex-1">
-                      <div className="bg-gray-100 rounded h-3 overflow-hidden">
-                        <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
-                      </div>
-                    </div>
-                    <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-xs text-gray-500">No per-core data.</div>
-            )}
-          </div>
-        </div>
+      {!loadingSys && system && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        <div className="bg-white rounded-2xl shadow p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-medium">CPU trend (selected cores)</div>
-            <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} items</div>
+          <div className="bg-white rounded-2xl shadow p-4">
+            <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectAllCores}
+                  onChange={handleSelectAll}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <div className="w-12 text-xs text-gray-600">All Cores</div>
+                <div className="flex-1"></div>
+              </div>
+             
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={!!selectedCores.systemCpu}
+                  onChange={handleSystemCpuToggle}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <div className="text-xs text-gray-600">System CPU</div>
+              </div>
+             
+              {system.cpu.per_core.length ? (
+                system.cpu.per_core.map((v, i) => {
+                  const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0
+                    ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value
+                    : v;
+                  return (
+                    <div key={i} className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={!!selectedCores[i]}
+                        onChange={() => handleCoreToggle(i)}
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                      <div className="w-12 text-xs text-gray-600">CPU {i}</div>
+                      <div className="flex-1">
+                        <div className="bg-gray-100 rounded h-3 overflow-hidden">
+                          <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
+                        </div>
+                      </div>
+                      <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-xs text-gray-500">No per-core data.</div>
+              )}
+            </div>
           </div>
-          <div className="h-40">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={cpuTrendSeries}>
-                <XAxis dataKey="time" stroke="#888" />
-                <YAxis stroke="#888" domain={[0, 100]} />
-                <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
-                <Legend />
-                {selectedCores.systemCpu && (
-                  <Line
-                    type="monotone"
-                    dataKey="System CPU"
-                    stroke="#ff6b6b"
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                )}
-                {cpuPerCore.map((_, coreIdx) =>
-                  selectedCores[coreIdx] ? (
+
+
+          <div className="bg-white rounded-2xl shadow p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-medium">CPU trend (selected cores)</div>
+              <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} items</div>
+            </div>
+            <div className="h-40">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={cpuTrendSeries}>
+                  <XAxis dataKey="time" stroke="#888" />
+                  <YAxis stroke="#888" domain={[0, 100]} />
+                  <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
+                  <Legend />
+                  {selectedCores.systemCpu && (
                     <Line
-                      key={coreIdx}
                       type="monotone"
-                      dataKey={`Core ${coreIdx}`}
-                      stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
+                      dataKey="System CPU"
+                      stroke="#ff6b6b"
                       dot={false}
                       strokeWidth={2}
                     />
-                  ) : null
-                )}
-              </LineChart>
-            </ResponsiveContainer>
+                  )}
+                  {system.cpu.per_core.map((_, coreIdx) =>
+                    selectedCores[coreIdx] ? (
+                      <Line
+                        key={coreIdx}
+                        type="monotone"
+                        dataKey={`Core ${coreIdx}`}
+                        stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
+                        dot={false}
+                        strokeWidth={2}
+                      />
+                    ) : null
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
 
       {/* Memory trend + alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow p-4">
-          <ChartCard
-            title="System Memory trend"
-            data={memoryTrendSeries}
-            type="area"
-          />
-        </div>
+     {!loadingSys && system && (
+     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        <div className="bg-white rounded-2xl shadow p-4">
-          <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
-          <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
-            {derivedAlerts.length === 0 ? (
-              <div className="text-xs text-gray-400">No alerts or events</div>
-            ) : (
-              derivedAlerts.map((a, i) => (
-                <div
-                  key={i}
-                  className={`p-2 rounded flex items-start gap-3 ${
-                    a.severity === "critical" ? "bg-red-50" : a.severity === "warning" ? "bg-yellow-50" : "bg-gray-50"
-                  }`}
-                >
+          <div className="bg-white rounded-2xl shadow p-4">
+            <ChartCard
+              title="System Memory trend"
+              data={memoryTrendSeries}
+              type="area"
+            />
+          </div>
+
+
+          <div className="bg-white rounded-2xl shadow p-4">
+            <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
+            <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
+              {derivedAlerts.length === 0 ? (
+                <div className="text-xs text-gray-400">No alerts or events</div>
+              ) : (
+                derivedAlerts.map((a, i) => (
                   <div
-                    className={`w-2 h-6 rounded ${
-                      a.severity === "critical" ? "bg-red-500" : a.severity === "warning" ? "bg-yellow-400" : "bg-gray-400"
+                    key={i}
+                    className={`p-2 rounded flex items-start gap-3 ${
+                      a.severity === "critical" ? "bg-red-50" : a.severity === "warning" ? "bg-yellow-50" : "bg-gray-50"
                     }`}
-                  />
-                  <div className="flex-1">
-                    <div className="text-xs text-gray-600 mb-1">{a.time}</div>
-                    <div className="text-sm">{a.message}</div>
+                  >
+                    <div
+                      className={`w-2 h-6 rounded ${
+                        a.severity === "critical" ? "bg-red-500" : a.severity === "warning" ? "bg-yellow-400" : "bg-gray-400"
+                      }`}
+                    />
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-600 mb-1">{a.time}</div>
+                      <div className="text-sm">{a.message}</div>
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
 
       {/* Containers table */}
-      <div>
-        <ContainersTable containers={containers} />
-      </div>
+      {!loadingContainers && (
+        <div>
+          <ContainersTable containers={containers} />
+        </div>
+      )}
     </div>
   );
-}
+});
+
+
+export default Dashboard;
