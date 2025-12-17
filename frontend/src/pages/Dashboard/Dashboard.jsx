@@ -83,6 +83,8 @@ const Dashboard = React.memo(() => {
     setLayout(newLayout);
   };
 
+
+
   const resetToDefaultLayout = () => {
     setLayout(defaultLayout);
   };
@@ -626,151 +628,156 @@ useEffect(() => {
         )}
 
 
-      {/* CPU ACTIVITY (PER CORE) + TREND */}
+      {/* CPU ACTIVITY (PER CORE) */}
       {!loadingSys && system && (
-        <>
-          <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4">
-            <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={selectAllCores}
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 cursor-pointer"
-                />
-                <div className="w-12 text-xs text-gray-600">All Cores</div>
-                <div className="flex-1"></div>
-              </div>
-             
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={!!selectedCores.systemCpu}
-                  onChange={handleSystemCpuToggle}
-                  className="w-4 h-4 cursor-pointer"
-                />
-                <div className="text-xs text-gray-600">System CPU</div>
-              </div>
-             
-              {system.cpu.per_core.length ? (
-                system.cpu.per_core.map((v, i) => {
-                  const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0
-                    ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value
-                    : v;
-                  return (
-                    <div key={i} className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={!!selectedCores[i]}
-                        onChange={() => handleCoreToggle(i)}
-                        className="w-4 h-4 cursor-pointer"
-                      />
-                      <div className="w-12 text-xs text-gray-600">CPU {i}</div>
-                      <div className="flex-1">
-                        <div className="bg-gray-100 rounded h-3 overflow-hidden">
-                          <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
-                        </div>
-                      </div>
-                      <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-xs text-gray-500">No per-core data.</div>
-              )}
-            </div>
-          </div>
+        <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4">
+          <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
 
-          <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-medium">CPU trend (selected cores)</div>
-              <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} items</div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectAllCores}
+                onChange={handleSelectAll}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <div className="w-12 text-xs text-gray-600">All Cores</div>
+              <div className="flex-1"></div>
             </div>
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={cpuTrendSeries}>
-                  <XAxis dataKey="time" stroke="#888" />
-                  <YAxis stroke="#888" domain={[0, 100]} />
-                  <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
-                  <Legend />
-                  {selectedCores.systemCpu && (
+           
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={!!selectedCores.systemCpu}
+                onChange={handleSystemCpuToggle}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <div className="text-xs text-gray-600">System CPU</div>
+            </div>
+           
+            {system.cpu.per_core.length ? (
+              system.cpu.per_core.map((v, i) => {
+                const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0
+                  ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value
+                  : v;
+                return (
+                  <div key={`cpu-core-${i}`} className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedCores[i]}
+                      onChange={() => handleCoreToggle(i)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                    <div className="w-12 text-xs text-gray-600">CPU {i}</div>
+                    <div className="flex-1">
+                      <div className="bg-gray-100 rounded h-3 overflow-hidden">
+                        <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
+                      </div>
+                    </div>
+                    <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-xs text-gray-500">No per-core data.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CPU TREND */}
+      {!loadingSys && system && (
+        <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-4">
+
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium">CPU trend (selected cores)</div>
+            <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} items</div>
+          </div>
+          <div className="h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={cpuTrendSeries}>
+                <XAxis dataKey="time" stroke="#888" />
+                <YAxis stroke="#888" domain={[0, 100]} />
+                <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
+                <Legend />
+                {selectedCores.systemCpu && (
+                  <Line
+                    type="monotone"
+                    dataKey="System CPU"
+                    stroke="#ff6b6b"
+                    dot={false}
+                    strokeWidth={2}
+                  />
+                )}
+                {system.cpu.per_core.map((_, coreIdx) =>
+                  selectedCores[coreIdx] ? (
                     <Line
+                      key={coreIdx}
                       type="monotone"
-                      dataKey="System CPU"
-                      stroke="#ff6b6b"
+                      dataKey={`Core ${coreIdx}`}
+                      stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
                       dot={false}
                       strokeWidth={2}
                     />
-                  )}
-                  {system.cpu.per_core.map((_, coreIdx) =>
-                    selectedCores[coreIdx] ? (
-                      <Line
-                        key={coreIdx}
-                        type="monotone"
-                        dataKey={`Core ${coreIdx}`}
-                        stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
-                        dot={false}
-                        strokeWidth={2}
-                      />
-                    ) : null
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                  ) : null
+                )}
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-        </>
+        </div>
       )}
 
 
-      {/* Memory trend + alerts */}
-     {!loadingSys && system && (
-        <>
-          <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-4">
-            <ChartCard
-              title="System Memory trend"
-              data={memoryTrendSeries}
-              type="area"
-            />
-          </div>
+      {/* Memory trend */}
+      {!loadingSys && system && (
+        <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-4">
 
-          <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4">
-            <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
-            <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
-              {derivedAlerts.length === 0 ? (
-                <div className="text-xs text-gray-400">No alerts or events</div>
-              ) : (
-                derivedAlerts.map((a, i) => (
+          <ChartCard
+            title="System Memory trend"
+            data={memoryTrendSeries}
+            type="area"
+          />
+        </div>
+      )}
+
+      {/* Alerts panel */}
+      {!loadingSys && system && (
+        <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4">
+
+          <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
+          <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
+            {derivedAlerts.length === 0 ? (
+              <div className="text-xs text-gray-400">No alerts or events</div>
+            ) : (
+              derivedAlerts.map((a, i) => (
+                <div
+                  key={`alert-${i}`}
+                  className={`p-2 rounded flex items-start gap-3 ${
+                    a.severity === "critical" ? "bg-red-50" : a.severity === "warning" ? "bg-yellow-50" : "bg-gray-50"
+                  }`}
+                >
                   <div
-                    key={i}
-                    className={`p-2 rounded flex items-start gap-3 ${
-                      a.severity === "critical" ? "bg-red-50" : a.severity === "warning" ? "bg-yellow-50" : "bg-gray-50"
+                    className={`w-2 h-6 rounded ${
+                      a.severity === "critical" ? "bg-red-500" : a.severity === "warning" ? "bg-yellow-400" : "bg-gray-400"
                     }`}
-                  >
-                    <div
-                      className={`w-2 h-6 rounded ${
-                        a.severity === "critical" ? "bg-red-500" : a.severity === "warning" ? "bg-yellow-400" : "bg-gray-400"
-                      }`}
-                    />
-                    <div className="flex-1">
-                      <div className="text-xs text-gray-600 mb-1">{a.time}</div>
-                      <div className="text-sm">{a.message}</div>
-                    </div>
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs text-gray-600 mb-1">{a.time}</div>
+                    <div className="text-sm">{a.message}</div>
                   </div>
-                ))
-              )}
-            </div>
+                </div>
+              ))
+            )}
           </div>
-        </>
+        </div>
       )}
 
 
       {/* Containers table */}
-      {!loadingContainers && (
-        <div key="containers-table">
-          <ContainersTable containers={containers} />
-        </div>
-      )}
+      <div key="containers-table">
+
+        <ContainersTable containers={containers} />
+      </div>
     </GridLayout>
     </div>
   );
