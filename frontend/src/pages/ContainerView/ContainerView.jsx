@@ -21,6 +21,7 @@ export default function ContainerView() {
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
+  const [isStopping, setIsStopping] = useState(false);
 
   const [cpuHistory, setCpuHistory] = useState([]);
 
@@ -31,6 +32,48 @@ export default function ContainerView() {
   const [processes, setProcesses] = useState([]);
   const [processesLoading, setProcessesLoading] = useState(false);
   const [processesError, setProcessesError] = useState("");
+
+  // --------- STOP A CONTAINER ----------
+  const stopContainer = async () => {
+    if (!window.confirm("Are you sure you want to stop this container?")) {
+      return;
+    }
+
+    setIsStopping(true);
+    const TOAST_ID = "stop-container";
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/containers/${id}/stop`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast.success("Container stopped successfully.", {
+          toastId: TOAST_ID,
+          autoClose: 3000,
+        });
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        toast.error(data.message || "Failed to stop container.", {
+          toastId: TOAST_ID,
+          autoClose: 3000,
+        });
+      }
+    } catch (error) {
+      console.error("Error stopping container:", error);
+      toast.error("An error occurred while stopping the container.", {
+        toastId: TOAST_ID,
+        autoClose: 3000,
+      });
+    } finally {
+      setIsStopping(false);
+    }
+  };
 
   // --------- FETCH STATS (poll every 5s) ----------
   useEffect(() => {
@@ -235,6 +278,7 @@ export default function ContainerView() {
     : 0;
 
   const statusLabel = stats ? formatStatus(stats.status) : "Unknown";
+  const isRunning = statusLabel === "Running";
 
   if (statsLoading && !stats) {
     return (
@@ -281,8 +325,18 @@ export default function ContainerView() {
           </div>
         </div>
 
-        <div className="flex gap-4">
-          <button className="text-black hover:opacity-70">Stop</button>
+        <div className="flex gap-3">
+          <button
+            onClick={stopContainer}
+            disabled={!isRunning || isStopping}
+            className={`px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 ${
+              isRunning && !isStopping
+                ? "bg-red-500 text-white hover:bg-red-600 shadow-sm hover:shadow-md active:scale-95"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            }`}
+          >
+            {isStopping ? "Stopping..." : "Stop Container"}
+          </button>
         </div>
       </div>
 
