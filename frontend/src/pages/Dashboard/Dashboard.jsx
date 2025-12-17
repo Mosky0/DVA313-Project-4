@@ -41,52 +41,102 @@ const Dashboard = React.memo(() => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [layout, setLayout] = useState([]);
   const [width, setWidth] = useState(window.innerWidth - 100);
+  const [componentsReady, setComponentsReady] = useState({
+    system: false,
+    containers: false,
+    events: false
+  });
   const wasDisconnected = useRef(false);
 
   // Define default layout
   const defaultLayout = [
-    { i: 'load-card', x: 0, y: 0, w: 1, h: 1, static: true },
-    { i: 'cpu-card', x: 1, y: 0, w: 1, h: 1, static: true },
-    { i: 'memory-card', x: 2, y: 0, w: 1, h: 1, static: true },
-    { i: 'uptime-card', x: 3, y: 0, w: 1, h: 1, static: true },
+    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
+    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
+    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
+    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
     
-    { i: 'cpu-activity-chart', x: 0, y: 1, w: 2, h: 2, static: true },
-    { i: 'cpu-trend-chart', x: 2, y: 1, w: 2, h: 2, static: true },
+    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 4, "moved": false, "static": false },
+    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 4, "moved": false, "static": false },
     
-    { i: 'memory-trend-chart', x: 0, y: 3, w: 2, h: 2, static: true },
-    { i: 'alerts-panel', x: 2, y: 3, w: 2, h: 2, static: true },
+    { "i": "memory-trend-chart", "x": 0, "y": 5, "w": 4, "h": 2, "moved": false, "static": false },
+    { "i": "alerts-panel", "x": 4, "y": 5, "w": 4, "h": 2, "moved": false, "static": false },
     
-    { i: 'containers-table', x: 0, y: 5, w: 4, h: 3, static: true }
+    { "i": "containers-table", "x": 0, "y": 7, "w": 8, "h": 6, "moved": false, "static": false }
   ];
 
   useEffect(() => {
-    const savedLayout = localStorage.getItem('dashboard_layout_v4');
-    if (savedLayout) {
+    const savedLayoutV4 = localStorage.getItem('dashboard_layout_v4');
+    
+    if (savedLayoutV4) {
       try {
-        setLayout(JSON.parse(savedLayout));
+        const parsedLayout = JSON.parse(savedLayoutV4);
+        
+        const isProblematicLayout = parsedLayout.every(item => item.w === 1 && item.h === 1);
+        
+        if (isProblematicLayout) {
+          localStorage.removeItem('dashboard_layout_v4');
+        }
       } catch (e) {
-        console.error('Failed to parse saved layout:', e);
-        setLayout(defaultLayout);
+        localStorage.removeItem('dashboard_layout_v4');
       }
-    } else {
-      setLayout(defaultLayout);
     }
   }, []);
+  
+  useEffect(() => {
+    const { system, containers, events } = componentsReady;
+    
+    if (system && containers && events) {
+      
+      setTimeout(() => {
+        resetToDefaultLayout();
+      }, 100);
+    }
+  }, [componentsReady]);
+
+  useEffect(() => {    
+    const interval = setInterval(() => {
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [layout]);
 
   useEffect(() => {
     if (layout.length > 0) {
-      localStorage.setItem('dashboard_layout_v4', JSON.stringify(layout));
+      const isStackedLayout = layout.every(item => item.w === 1 && item.h === 1);
+      
+      if (!isStackedLayout) {
+        localStorage.setItem('dashboard_layout_v4', JSON.stringify(layout));
+      } else {
+      }
     }
   }, [layout]);
 
   const onLayoutChange = (newLayout) => {
-    setLayout(newLayout);
+    const isValidLayout = newLayout.every(item => 
+      typeof item.x === 'number' && 
+      typeof item.y === 'number' && 
+      typeof item.w === 'number' && 
+      typeof item.h === 'number' &&
+      item.w > 0 && item.h > 0
+    );
+    
+    const isStackedLayout = newLayout.length > 0 && newLayout.every(item => item.w === 1 && item.h === 1);
+    
+    if (isValidLayout && !isStackedLayout) {
+      setLayout(newLayout);
+    } else {
+      setTimeout(() => {
+        setLayout(defaultLayout);
+      }, 50);
+    }
   };
 
 
 
   const resetToDefaultLayout = () => {
-    setLayout(defaultLayout);
+    setTimeout(() => {
+      setLayout(defaultLayout);
+    }, 50);
   };
 
   useEffect(() => {
@@ -129,7 +179,7 @@ const Dashboard = React.memo(() => {
          
          if (mounted) {
         setSystem(sysData);
-        
+        setComponentsReady(prev => ({ ...prev, system: true }));
        }
 
         }
@@ -186,22 +236,30 @@ const Dashboard = React.memo(() => {
               return stats ? { ...c, ...stats } : c;
             });
             setContainers(updated);
+            setComponentsReady(prev => ({ ...prev, containers: true }));
           }
         }
         if (evRes.ok) {
           const evData = await evRes.json();
-          if (mounted) setEvents(Array.isArray(evData) ? evData : []);
+          if (mounted) {
+            setEvents(Array.isArray(evData) ? evData : []);
+            setComponentsReady(prev => ({ ...prev, events: true }));
+          }
         } else {
-          if (mounted) setEvents([]);
+          if (mounted) {
+            setEvents([]);
+            setComponentsReady(prev => ({ ...prev, events: true }));
+          }
         }
 
       } catch (e) {
       console.error("fetchSystemData error:", e);
       
       } finally {
-        if (mounted) 
+        if (mounted) {
           setLoadingSys(false);
           setLoadingEvents(false);
+        }
       }
     };
 
@@ -573,20 +631,21 @@ useEffect(() => {
             Reset Layout
           </button>
         )}
+
       </div>
 
       {/* Grid Layout */}
       <GridLayout
         className="layout"
         layout={layout}
-        cols={4}
-        rowHeight={150}
+        cols={8}
+        rowHeight={110}
         width={width}
         isDraggable={isEditMode}
         isResizable={isEditMode}
         onLayoutChange={onLayoutChange}
         margin={[16, 16]}
-        containerPadding={[0, 0]}
+        containerPadding={[20, 20]}
       >
         {/* TOP CARDS */}
         {!loadingSys && system && (
