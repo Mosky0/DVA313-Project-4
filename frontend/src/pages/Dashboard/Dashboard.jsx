@@ -43,10 +43,11 @@ const Dashboard = React.memo(() => {
 
     const fetchSystemData = async () => {
       try {
-        const [sysRes, historyRes, latestSysRes] = await Promise.all([
+        const [sysRes, historyRes, latestSysRes, contRes, evRes] = await Promise.all([
           fetch(`${API_BASE_URL}/system`),
           fetch(`${API_BASE_URL}/system/metrics/history`),
-          fetch(`${API_BASE_URL}/system/metrics/latest`)
+          fetch(`${API_BASE_URL}/system/metrics/latest`),
+          fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" })
         ]);
 
 
@@ -75,15 +76,76 @@ const Dashboard = React.memo(() => {
             setSystemCpuHistory(historyData.systemCpuHistory || []);
           }
         }
+
+        if (contRes.ok) {
+          const contListData = await contRes.json();
+          
+          if (!mounted || !Array.isArray(contListData)) return;
+
+          const mapped = contListData.map((c) => ({
+            id: c.id || c.Id || "",
+            name: c.name || c.Name || c.id || "",
+            cpu_percent: 0,
+            mem_usage: "—",
+            status: (c.status || c.Status || "").toString().toLowerCase(),
+          }));
+
+          const statsPromises = mapped.map(async (container) => {
+            try {
+              const res = await fetch(`${API_BASE_URL}/containers/${container.id}/stats`);
+              const stats = res.ok ? await res.json() : null;
+              
+              if (!stats) return null;
+              
+              const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
+              const cpuValue = rawCpu < 10 ? rawCpu * 100 : rawCpu;
+              
+              const result = {
+                id: container.id,
+                cpu_percent: Number(cpuValue) || 0,
+                mem_usage: stats.mem_usage ?? stats.MemoryUsage ?? stats.memory ?? "—",
+              };
+              
+              return result;
+            } catch (err) {
+              console.error(`Stats fetch error for ${container.id}:`, err);
+              return null;
+            }
+          });
+
+          const statsResults = await Promise.all(statsPromises);
+
+          if (mounted) {
+            const updated = mapped.map((c) => {
+              const stats = statsResults.find((s) => s && s.id === c.id);
+              return stats ? { ...c, ...stats } : c;
+            });
+            setContainers(updated);
+          }
+        }
+        if (evRes.ok) {
+          const evData = await evRes.json();
+          if (mounted) setEvents(Array.isArray(evData) ? evData : []);
+        } else {
+          if (mounted) setEvents([]);
+        }
+
       } catch (e) {
         console.error("fetchSystemData error:", e);
       } finally {
-        if (mounted) setLoadingSys(false);
+        if (mounted) 
+          setLoadingSys(false);
+          setLoadingEvents(false);
       }
     };
 
-
     fetchSystemData();
+    const iv = setInterval(fetchSystemData, 5000); 
+
+    return () => {
+      mounted = false;
+      clearInterval(iv);
+    };
   }, []);
 
 
@@ -120,7 +182,7 @@ const Dashboard = React.memo(() => {
               if (!stats) return null;
              
               const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
-              const cpuValue = rawCpu < 10 ? rawCpu * 100 : rawCpu;
+              const cpuValue = rawCpu;
              
               const result = {
                 id: container.id,
@@ -151,11 +213,17 @@ const Dashboard = React.memo(() => {
         console.error("fetchContainersData error:", e);
       } finally {
         if (mounted) setLoadingContainers(false);
+        
       }
     };
 
 
     fetchContainersData();
+    const containerInterval = setInterval(fetchContainersData, 5000); 
+    return () => {
+      mounted = false;
+      clearInterval(containerInterval);
+    };
   }, []);
 
 
@@ -184,6 +252,7 @@ const Dashboard = React.memo(() => {
 
 
     fetchEventsData();
+    
   }, []);
 
 
