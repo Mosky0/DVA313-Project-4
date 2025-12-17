@@ -282,7 +282,6 @@ export default function ContainerView() {
         </div>
 
         <div className="flex gap-4">
-          <button className="text-black hover:opacity-70">Restart</button>
           <button className="text-black hover:opacity-70">Stop</button>
         </div>
       </div>
