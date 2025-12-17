@@ -47,9 +47,7 @@ const Dashboard = React.memo(() => {
           fetch(`${API_BASE_URL}/system`),
           fetch(`${API_BASE_URL}/system/metrics/history`),
           fetch(`${API_BASE_URL}/system/metrics/latest`),
-          fetch(`${API_BASE_URL}/containers?_=${Date.now()}`),
-          fetch(`${API_BASE_URL}/system/metrics/latest`),
-          fetch(`${API_BASE_URL}/events?_=${Date.now()}`)
+          fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" })
         ]);
 
 
@@ -137,7 +135,6 @@ const Dashboard = React.memo(() => {
       } finally {
         if (mounted) 
           setLoadingSys(false);
-          setLoadingContainers(false);
           setLoadingEvents(false);
       }
     };
@@ -185,7 +182,7 @@ const Dashboard = React.memo(() => {
               if (!stats) return null;
              
               const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
-              const cpuValue = rawCpu < 10 ? rawCpu * 100 : rawCpu;
+              const cpuValue = rawCpu;
              
               const result = {
                 id: container.id,
@@ -216,11 +213,17 @@ const Dashboard = React.memo(() => {
         console.error("fetchContainersData error:", e);
       } finally {
         if (mounted) setLoadingContainers(false);
+        
       }
     };
 
 
     fetchContainersData();
+    const containerInterval = setInterval(fetchContainersData, 5000); 
+    return () => {
+      mounted = false;
+      clearInterval(containerInterval);
+    };
   }, []);
 
 
@@ -249,6 +252,7 @@ const Dashboard = React.memo(() => {
 
 
     fetchEventsData();
+    
   }, []);
 
 
