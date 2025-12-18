@@ -764,10 +764,10 @@ useEffect(() => {
 
 
       {/* CPU ACTIVITY (PER CORE) */}
-      <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4">
+      <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
         <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
 
-        <div className="space-y-3">
+        <div className="flex-grow overflow-y-auto min-h-[150px] space-y-3">
           <div className="flex items-center gap-3">
             <input
               type="checkbox"
