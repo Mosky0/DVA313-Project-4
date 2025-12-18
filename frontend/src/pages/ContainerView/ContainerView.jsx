@@ -35,10 +35,6 @@ export default function ContainerView() {
 
   // --------- STOP A CONTAINER ----------
   const stopContainer = async () => {
-    if (!window.confirm("Are you sure you want to stop this container?")) {
-      return;
-    }
-
     setIsStopping(true);
     const TOAST_ID = "stop-container";
 
@@ -50,14 +46,18 @@ export default function ContainerView() {
         },
       });
       const data = await response.json();
+
       if (response.ok) {
         toast.success("Container stopped successfully.", {
           toastId: TOAST_ID,
-          autoClose: 3000,
+          autoClose: 2000,
         });
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
+        setStats((prevStats) => ({
+          ...prevStats,
+          status: "exited",
+          cpu_percent: 0,
+        }));
+        setProcesses([]); //clear them so it closes faster
       } else {
         toast.error(data.message || "Failed to stop container.", {
           toastId: TOAST_ID,
