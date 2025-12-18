@@ -41,27 +41,23 @@ const Dashboard = React.memo(() => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [layout, setLayout] = useState([]);
   const [width, setWidth] = useState(window.innerWidth - 100);
-  const [componentsReady, setComponentsReady] = useState({
-    system: false,
-    containers: false,
-    events: false
-  });
+
   const wasDisconnected = useRef(false);
 
   // Define default layout
   const defaultLayout = [
-    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
-    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
-    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
-    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
+    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
     
-    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 4, "moved": false, "static": false },
-    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 4, "moved": false, "static": false },
+    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 4, "moved": false, "static": true },
+    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 4, "moved": false, "static": true },
     
-    { "i": "memory-trend-chart", "x": 0, "y": 5, "w": 4, "h": 2, "moved": false, "static": false },
-    { "i": "alerts-panel", "x": 4, "y": 5, "w": 4, "h": 2, "moved": false, "static": false },
+    { "i": "memory-trend-chart", "x": 0, "y": 5, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "alerts-panel", "x": 4, "y": 5, "w": 4, "h": 2, "moved": false, "static": true },
     
-    { "i": "containers-table", "x": 0, "y": 7, "w": 8, "h": 6, "moved": false, "static": false }
+    { "i": "containers-table", "x": 0, "y": 7, "w": 8, "h": 6, "moved": false, "static": true }
   ];
 
   useEffect(() => {
@@ -82,31 +78,21 @@ const Dashboard = React.memo(() => {
     }
   }, []);
   
-  useEffect(() => {
-    const { system, containers, events } = componentsReady;
-    
-    if (system && containers && events) {
-      
-      setTimeout(() => {
-        resetToDefaultLayout();
-      }, 100);
-    }
-  }, [componentsReady]);
 
-  useEffect(() => {    
-    const interval = setInterval(() => {
-    }, 5000);
+
     
     return () => clearInterval(interval);
-  }, [layout]);
+  }, [layout, isEditMode]);
 
   useEffect(() => {
     if (layout.length > 0) {
       const isStackedLayout = layout.every(item => item.w === 1 && item.h === 1);
-      
       if (!isStackedLayout) {
-        localStorage.setItem('dashboard_layout_v4', JSON.stringify(layout));
-      } else {
+        const savedLayout = layout.map(item => ({
+          ...item,
+          static: true
+        }));
+        localStorage.setItem('dashboard_layout_v4', JSON.stringify(savedLayout));
       }
     }
   }, [layout]);
@@ -179,7 +165,7 @@ const Dashboard = React.memo(() => {
          
          if (mounted) {
         setSystem(sysData);
-        setComponentsReady(prev => ({ ...prev, system: true }));
+        
        }
 
         }
@@ -236,19 +222,17 @@ const Dashboard = React.memo(() => {
               return stats ? { ...c, ...stats } : c;
             });
             setContainers(updated);
-            setComponentsReady(prev => ({ ...prev, containers: true }));
+
           }
         }
         if (evRes.ok) {
           const evData = await evRes.json();
           if (mounted) {
             setEvents(Array.isArray(evData) ? evData : []);
-            setComponentsReady(prev => ({ ...prev, events: true }));
           }
         } else {
           if (mounted) {
             setEvents([]);
-            setComponentsReady(prev => ({ ...prev, events: true }));
           }
         }
 
@@ -593,7 +577,7 @@ useEffect(() => {
    
     const newSelectedCores = { systemCpu: true };
     if (system?.cpu?.per_core) {
-      system.cpu.per_core.forEach((_, i) => {
+      system?.cpu?.per_core?.forEach((_, i) => {
         newSelectedCores[i] = newSelectAll;
       });
     }
@@ -648,109 +632,128 @@ useEffect(() => {
         containerPadding={[20, 20]}
       >
         {/* TOP CARDS */}
-        {!loadingSys && system && (
-          <div key="load-card" className="bg-white rounded-xl p-4 shadow">
-            <div className="text-xs text-gray-500">Load (1/5/15)</div>
+        <div key="load-card" className="bg-white rounded-xl p-4 shadow">
+          <div className="text-xs text-gray-500">Load (1/5/15)</div>
+          {loadingSys || !system ? (
+            <div className="text-lg font-semibold text-gray-400">Loading...</div>
+          ) : (
             <div className="text-lg font-semibold">
-              {system.load.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
+              {system?.load?.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
             </div>
+          )}
+          {loadingSys || !system ? (
+            <div className="text-xs text-gray-400 mt-1">Processes: — • Running: —</div>
+          ) : (
             <div className="text-xs text-gray-400 mt-1">
               Processes: {system.total_processes} • Running: {system.running}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {!loadingSys && system && (
-          <div key="cpu-card" className="bg-white rounded-xl p-4 shadow flex items-center">
-            <CircleMetric value={Math.round(system.cpu.total_percent || 0)} label="System CPU" />
-          </div>
-        )}
+        <div key="cpu-card" className="bg-white rounded-xl p-4 shadow flex items-center">
+          {loadingSys || !system ? (
+            <CircleMetric value={0} label="System CPU" />
+          ) : (
+            <CircleMetric value={Math.round(system?.cpu?.total_percent || 0)} label="System CPU" />
+          )}
+        </div>
 
-        {!loadingSys && system && (
-          <div key="memory-card" className="bg-white rounded-xl p-4 shadow">
-            <div className="text-xs text-gray-500">Memory</div>
+        <div key="memory-card" className="bg-white rounded-xl p-4 shadow">
+          <div className="text-xs text-gray-500">Memory</div>
+          {loadingSys || !system ? (
+            <div className="mt-2 text-sm font-semibold text-gray-400">—</div>
+          ) : (
             <div className="mt-2 text-sm font-semibold">{memPct}%</div>
-            <div className="mt-3">
-              <div className="bg-gray-200 h-2 rounded overflow-hidden">
-                <div className="h-2 bg-[#2496ED]" style={{ width: `${memPct}%` }} />
-              </div>
+          )}
+          <div className="mt-3">
+            <div className="bg-gray-200 h-2 rounded overflow-hidden">
+              <div 
+                className="h-2 bg-[#2496ED]" 
+                style={{ width: `${loadingSys || !system ? 0 : memPct}%` }} 
+              />
             </div>
           </div>
-        )}
+        </div>
 
-        {!loadingSys && system && (
-          <div key="uptime-card" className="bg-white rounded-xl p-4 shadow">
-            <div className="text-xs text-gray-500">Uptime</div>
+        <div key="uptime-card" className="bg-white rounded-xl p-4 shadow">
+          <div className="text-xs text-gray-500">Uptime</div>
+          {loadingSys || !system ? (
+            <div className="mt-2 text-lg font-semibold text-gray-400">Loading...</div>
+          ) : (
             <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
-            <div className="text-xs text-gray-400 mt-1">Host</div>
-          </div>
-        )}
+          )}
+          <div className="text-xs text-gray-400 mt-1">Host</div>
+        </div>
 
 
       {/* CPU ACTIVITY (PER CORE) */}
-      {!loadingSys && system && (
-        <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4">
-          <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
+      <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4">
+        <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
 
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={selectAllCores}
-                onChange={handleSelectAll}
-                className="w-4 h-4 cursor-pointer"
-              />
-              <div className="w-12 text-xs text-gray-600">All Cores</div>
-              <div className="flex-1"></div>
-            </div>
-           
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={!!selectedCores.systemCpu}
-                onChange={handleSystemCpuToggle}
-                className="w-4 h-4 cursor-pointer"
-              />
-              <div className="text-xs text-gray-600">System CPU</div>
-            </div>
-           
-            {system.cpu.per_core.length ? (
-              system.cpu.per_core.map((v, i) => {
-                const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0
-                  ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value
-                  : v;
-                return (
-                  <div key={`cpu-core-${i}`} className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={!!selectedCores[i]}
-                      onChange={() => handleCoreToggle(i)}
-                      className="w-4 h-4 cursor-pointer"
-                    />
-                    <div className="w-12 text-xs text-gray-600">CPU {i}</div>
-                    <div className="flex-1">
-                      <div className="bg-gray-100 rounded h-3 overflow-hidden">
-                        <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
-                      </div>
-                    </div>
-                    <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-xs text-gray-500">No per-core data.</div>
-            )}
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={selectAllCores}
+              onChange={handleSelectAll}
+              className="w-4 h-4 cursor-pointer"
+              disabled={loadingSys || !system}
+            />
+            <div className="w-12 text-xs text-gray-600">All Cores</div>
+            <div className="flex-1"></div>
           </div>
+         
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={!!selectedCores.systemCpu}
+              onChange={handleSystemCpuToggle}
+              className="w-4 h-4 cursor-pointer"
+              disabled={loadingSys || !system}
+            />
+            <div className="text-xs text-gray-600">System CPU</div>
+          </div>
+         
+          {loadingSys || !system ? (
+            <div className="text-xs text-gray-500">Loading CPU data...</div>
+          ) : system?.cpu?.per_core?.length ? (
+            system?.cpu?.per_core?.map((v, i) => {
+              const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0
+                ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value
+                : v;
+              return (
+                <div key={`cpu-core-${i}`} className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={!!selectedCores[i]}
+                    onChange={() => handleCoreToggle(i)}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                  <div className="w-12 text-xs text-gray-600">CPU {i}</div>
+                  <div className="flex-1">
+                    <div className="bg-gray-100 rounded h-3 overflow-hidden">
+                      <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
+                    </div>
+                  </div>
+                  <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-xs text-gray-500">No per-core data.</div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* CPU TREND */}
-      {!loadingSys && system && (
+      
         <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-4">
 
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium">CPU trend (selected cores)</div>
-            <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} items</div>
+            <div className="text-xs text-gray-500">
+              {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
+            </div>
           </div>
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
@@ -768,7 +771,7 @@ useEffect(() => {
                     strokeWidth={2}
                   />
                 )}
-                {system.cpu.per_core.map((_, coreIdx) =>
+                {system?.cpu?.per_core?.map((_, coreIdx) =>
                   selectedCores[coreIdx] ? (
                     <Line
                       key={coreIdx}
@@ -784,58 +787,67 @@ useEffect(() => {
             </ResponsiveContainer>
           </div>
         </div>
-      )}
 
 
       {/* Memory trend */}
-      {!loadingSys && system && (
-        <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-4">
-
+      <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-4">
+        {loadingSys || !system ? (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            Loading memory trend data...
+          </div>
+        ) : (
           <ChartCard
             title="System Memory trend"
             data={memoryTrendSeries}
             type="area"
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Alerts panel */}
-      {!loadingSys && system && (
-        <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4">
-
-          <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
-          <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
-            {derivedAlerts.length === 0 ? (
-              <div className="text-xs text-gray-400">No alerts or events</div>
-            ) : (
-              derivedAlerts.map((a, i) => (
+      <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4">
+        <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
+        <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
+          {loadingSys || !system ? (
+            <div className="text-xs text-gray-400">Loading alerts...</div>
+          ) : derivedAlerts.length === 0 ? (
+            <div className="text-xs text-gray-400">No alerts or events</div>
+          ) : (
+            derivedAlerts.map((a, i) => (
+              <div
+                key={`alert-${i}`}
+                className={`p-2 rounded flex items-start gap-3 ${
+                  a.severity === "critical" ? "bg-red-50" : a.severity === "warning" ? "bg-yellow-50" : "bg-gray-50"
+                }`}
+              >
                 <div
-                  key={`alert-${i}`}
-                  className={`p-2 rounded flex items-start gap-3 ${
-                    a.severity === "critical" ? "bg-red-50" : a.severity === "warning" ? "bg-yellow-50" : "bg-gray-50"
+                  className={`w-2 h-6 rounded ${
+                    a.severity === "critical" ? "bg-red-500" : a.severity === "warning" ? "bg-yellow-400" : "bg-gray-400"
                   }`}
-                >
-                  <div
-                    className={`w-2 h-6 rounded ${
-                      a.severity === "critical" ? "bg-red-500" : a.severity === "warning" ? "bg-yellow-400" : "bg-gray-400"
-                    }`}
-                  />
-                  <div className="flex-1">
-                    <div className="text-xs text-gray-600 mb-1">{a.time}</div>
-                    <div className="text-sm">{a.message}</div>
-                  </div>
+                />
+                <div className="flex-1">
+                  <div className="text-xs text-gray-600 mb-1">{a.time}</div>
+                  <div className="text-sm">{a.message}</div>
                 </div>
-              ))
-            )}
-          </div>
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </div>
 
 
       {/* Containers table */}
       <div key="containers-table">
-
-        <ContainersTable containers={containers} />
+        {loadingContainers ? (
+          <div className="bg-white rounded-2xl shadow p-4">
+            <div className="text-sm font-medium mb-3">Containers</div>
+            <div className="flex items-center justify-center h-32 text-gray-500">
+              Loading containers...
+            </div>
+          </div>
+        ) : (
+          <ContainersTable containers={containers} />
+        )}
       </div>
     </GridLayout>
     </div>
