@@ -46,18 +46,18 @@ const Dashboard = React.memo(() => {
 
   // Define default layout
   const defaultLayout = [
-    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
-    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
-    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
-    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
+    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
     
-    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 4, "moved": false, "static": false },
-    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 4, "moved": false, "static": false },
+    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 4, "moved": false, "static": true },
+    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 4, "moved": false, "static": true },
     
-    { "i": "memory-trend-chart", "x": 0, "y": 5, "w": 4, "h": 2, "moved": false, "static": false },
-    { "i": "alerts-panel", "x": 4, "y": 5, "w": 4, "h": 2, "moved": false, "static": false },
+    { "i": "memory-trend-chart", "x": 0, "y": 5, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "alerts-panel", "x": 4, "y": 5, "w": 4, "h": 2, "moved": false, "static": true },
     
-    { "i": "containers-table", "x": 0, "y": 7, "w": 8, "h": 6, "moved": false, "static": false }
+    { "i": "containers-table", "x": 0, "y": 7, "w": 8, "h": 6, "moved": false, "static": true }
   ];
 
   useEffect(() => {
@@ -86,25 +86,8 @@ const Dashboard = React.memo(() => {
   
 
 
-  useEffect(() => {    
-    const interval = setInterval(() => {
-      //debug
-    }, 5000);
-    
-    return () => clearInterval(interval);
-  }, [layout, isEditMode]);
 
   useEffect(() => {
-    if (layout.length > 0) {
-      const isStackedLayout = layout.every(item => item.w === 1 && item.h === 1);
-      if (!isStackedLayout) {
-        const savedLayout = layout.map(item => ({
-          ...item,
-          static: true 
-        }));
-        localStorage.setItem('dashboard_layout_v4', JSON.stringify(savedLayout));
-      }
-    }
   }, [layout]);
 
   const onLayoutChange = (newLayout) => {
@@ -120,10 +103,12 @@ const Dashboard = React.memo(() => {
     
     if (isValidLayout && !isStackedLayout) {
       setLayout(newLayout);
-    } else {
+    } else if (isEditMode) {
       setTimeout(() => {
         setLayout(defaultLayout);
       }, 50);
+    } else {
+      setLayout(newLayout);
     }
   };
 
@@ -609,23 +594,54 @@ useEffect(() => {
   </div>
 )}
 
-      {/* Edit Button */}
-      <div className="flex justify-end mb-4">
-        <button 
-          onClick={() => setIsEditMode(!isEditMode)}
-          className={`px-4 py-2 rounded-md text-sm font-medium ${isEditMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-        >
-          {isEditMode ? 'Exit Edit Mode' : 'Edit Layout'}
-        </button>
-        {isEditMode && (
+      {/* Edit Controls */}
+      <div className="flex justify-end mb-4 gap-2">
+        {!isEditMode ? (
           <button 
-            onClick={resetToDefaultLayout}
-            className="ml-2 px-4 py-2 rounded-md text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300"
+            onClick={() => setIsEditMode(true)}
+            className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
           >
-            Reset Layout
+            Edit Layout
           </button>
+        ) : (
+          <>
+            <button 
+              onClick={resetToDefaultLayout}
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            >
+              Reset
+            </button>
+            <button 
+              onClick={() => {
+                const layoutToSave = layout.map(item => ({ ...item, static: true }));
+                localStorage.setItem('dashboard_layout_v4', JSON.stringify(layoutToSave));
+                setIsEditMode(false);
+              }}
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            >
+              Save
+            </button>
+            <button 
+              onClick={() => {
+                const savedLayoutV4 = localStorage.getItem('dashboard_layout_v4');
+                if (savedLayoutV4) {
+                  try {
+                    const parsedLayout = JSON.parse(savedLayoutV4);
+                    setLayout(parsedLayout);
+                  } catch (e) {
+                    setLayout(defaultLayout);
+                  }
+                } else {
+                  setLayout(defaultLayout);
+                }
+                setIsEditMode(false);
+              }}
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+          </>
         )}
-
       </div>
 
       {/* Grid Layout */}
