@@ -4,7 +4,7 @@ import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
 import { API_BASE_URL } from "../../config";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
+  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid
 } from "recharts";
 import GridLayout from "react-grid-layout";
 import "./../../../node_modules/react-grid-layout/css/styles.css";
@@ -102,13 +102,13 @@ const Dashboard = React.memo(() => {
     { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
     { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
     
-    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 4, "moved": false, "static": true },
-    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 4, "moved": false, "static": true },
+    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 2, "moved": false, "static": true },
     
-    { "i": "memory-trend-chart", "x": 0, "y": 5, "w": 4, "h": 2, "moved": false, "static": true },
-    { "i": "alerts-panel", "x": 4, "y": 5, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "memory-trend-chart", "x": 0, "y": 3, "w": 4, "h": 1, "moved": false, "static": true },
+    { "i": "alerts-panel", "x": 4, "y": 3, "w": 4, "h": 1, "moved": false, "static": true },
     
-    { "i": "containers-table", "x": 0, "y": 7, "w": 8, "h": 6, "moved": false, "static": true }
+    { "i": "containers-table", "x": 0, "y": 4, "w": 8, "h": 3, "moved": false, "static": true }
   ];
 
   useEffect(() => {
@@ -700,13 +700,13 @@ useEffect(() => {
         className="layout"
         layout={layout.map(item => ({ ...item, static: !isEditMode }))}
         cols={8}
-        rowHeight={110}
+        rowHeight={40}
         width={width}
         isDraggable={isEditMode}
         isResizable={isEditMode}
         onLayoutChange={onLayoutChange}
-        margin={[16, 16]}
-        containerPadding={[20, 20]}
+        margin={[10, 10]}
+        containerPadding={[15, 15]}
       >
         {/* TOP CARDS */}
         <div key="load-card" className="bg-white rounded-xl p-4 shadow">
@@ -824,7 +824,7 @@ useEffect(() => {
 
       {/* CPU TREND */}
       
-        <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
+        <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
 
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium">CPU trend (selected cores)</div>
@@ -832,13 +832,14 @@ useEffect(() => {
               {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
             </div>
           </div>
-          <div className="flex-grow min-h-[150px]">
+          <div className="flex-grow min-h-[100px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={cpuTrendSeries}>
-                <XAxis dataKey="time" stroke="#888" />
-                <YAxis stroke="#888" domain={[0, 100]} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="time" stroke="#888" tick={{ fontSize: 12 }} />
+                <YAxis stroke="#888" domain={[0, 100]} tick={{ fontSize: 12 }} width={30} />
                 <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
-                <Legend />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
                 {selectedCores.systemCpu && (
                   <Line
                     type="monotone"
@@ -867,7 +868,7 @@ useEffect(() => {
 
 
       {/* Memory trend */}
-      <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
+      <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
         {loadingSys || !system ? (
           <div className="flex items-center justify-center flex-grow text-gray-500">
             Loading memory trend data...
@@ -914,16 +915,16 @@ useEffect(() => {
 
 
       {/* Containers table */}
-      <div key="containers-table">
+      <div key="containers-table" className="bg-white rounded-2xl shadow p-4 h-full flex flex-col">
+        <div className="text-sm font-medium mb-3">Containers</div>
         {loadingContainers ? (
-          <div className="bg-white rounded-2xl shadow p-4">
-            <div className="text-sm font-medium mb-3">Containers</div>
-            <div className="flex items-center justify-center h-32 text-gray-500">
-              Loading containers...
-            </div>
+          <div className="flex items-center justify-center flex-grow text-gray-500">
+            Loading containers...
           </div>
         ) : (
-          <ContainersTable containers={containers} />
+          <div className="flex-grow overflow-y-auto">
+            <ContainersTable containers={containers} />
+          </div>
         )}
       </div>
     </GridLayout>
