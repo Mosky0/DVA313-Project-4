@@ -1,6 +1,6 @@
 import datetime
 import time
-from app.util.loggerConfig import IntializeLogger
+from app.utils.loggerConfig import IntializeLogger
 import docker
 from docker.errors import NotFound
 import psutil

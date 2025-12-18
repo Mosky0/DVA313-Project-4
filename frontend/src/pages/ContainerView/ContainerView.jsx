@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { API_BASE_URL } from "../../config";
+import { API_BASE_URL, API_POOLING_INTERVAL } from "../../config";
 import { containerCache } from "../../utils/cache";
 
 export default function ContainerView() {
@@ -36,7 +36,7 @@ export default function ContainerView() {
   useEffect(() => {
     let intervalId;
     const TOAST_ID = "status-error-container-view";
-    const POL_TIME_MS = 3000;
+    const POL_TIME_MS = API_POOLING_INTERVAL;
 
     const fetchStats = async () => {
       const statsCacheKey = `container_stats_${id}`;
@@ -135,7 +135,7 @@ export default function ContainerView() {
     };
 
     fetchHistoricalMetrics();
-    const interval = setInterval(fetchHistoricalMetrics, 5000);
+    const interval = setInterval(fetchHistoricalMetrics, API_POOLING_INTERVAL);
 
     return () => clearInterval(interval);
   }, [id]);

@@ -1,6 +1,11 @@
+import os
 import threading
 from datetime import datetime
 from collections import defaultdict, deque
+from app.utils.loggerConfig import IntializeLogger
+from dotenv import load_dotenv
+load_dotenv()
+logger = IntializeLogger(__name__)
 
 class RingBuffer:
     def __init__(self, size):
@@ -46,8 +51,9 @@ systemMetricsStorage = {
 }
 
 
-DEFAULT_BUFFER_SIZE = 360
-SYSTEM_DEFAULT_BUFFER_SIZE = 360
+DEFAULT_BUFFER_SIZE = (int(os.getenv('METRICS_STORAGE_LIMIT', 30)) * 60) // int(os.getenv('METRICS_UPDATE_INTERVAL', 5))
+SYSTEM_DEFAULT_BUFFER_SIZE = (int(os.getenv('METRICS_STORAGE_LIMIT', 30)) * 60) // int(os.getenv('METRICS_UPDATE_INTERVAL', 5))
+logger.info(f"Metrics storage buffer size set to {DEFAULT_BUFFER_SIZE} entries.")
 
 def initializeContainerBuffers(container_id, buffer_size=DEFAULT_BUFFER_SIZE):
     if container_id not in containerMetricsStorage:

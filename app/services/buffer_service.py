@@ -1,3 +1,4 @@
+import os
 import docker
 import threading
 import time
@@ -5,8 +6,9 @@ import psutil
 from app.utils.ringBuffer import addContainerMetrics, addSystemMetrics
 from app.routes.metrics import compute_container_usage
 
+API_POOLING_INTERVAL = int(os.getenv('API_POOLING_INTERVAL', 5))
 class MetricsCollector:
-    def __init__(self, interval=5):
+    def __init__(self, interval=API_POOLING_INTERVAL):
         self.interval = interval 
         self.docker_client = docker.from_env()
         self.running = False
