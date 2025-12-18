@@ -6,11 +6,22 @@ This project is about developing a web-based monitoring tool that will be able t
 Suggested technology: Python for the backend
 Client: Hitachi Energy
 
+#Use docker compose
+- Run docker compose
+    `docker compose up --build -d`
 
-#Docker image hosting steps
+#Docker image hosting steps without docker compose (No need of this just for information)
 
 - Create the docker image
     `docker build -t monitoring-app:0.0.1 .`
 
 - Run the docker image
     `docker run -d --name monitoring_app -p 8000:8000  -v /var/run/docker.sock:/var/run/docker.sock  monitoring-app:0.0.1`
+
+-Move to frontend dir `cd frontend`
+
+- Create frontend docker image
+    `docker build -f dockerfile -t monitoring-frontend:0.0.1 .`
+
+- Run the docker image frontend
+    `docker run -d  --name frontend  -p 3000:3000  monitoring-frontend:0.0.1`
