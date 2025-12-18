@@ -824,7 +824,7 @@ useEffect(() => {
 
       {/* CPU TREND */}
       
-        <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-4">
+        <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
 
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium">CPU trend (selected cores)</div>
@@ -832,7 +832,7 @@ useEffect(() => {
               {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
             </div>
           </div>
-          <div className="h-40">
+          <div className="flex-grow min-h-[150px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={cpuTrendSeries}>
                 <XAxis dataKey="time" stroke="#888" />
@@ -867,9 +867,9 @@ useEffect(() => {
 
 
       {/* Memory trend */}
-      <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-4">
+      <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
         {loadingSys || !system ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="flex items-center justify-center flex-grow text-gray-500">
             Loading memory trend data...
           </div>
         ) : (

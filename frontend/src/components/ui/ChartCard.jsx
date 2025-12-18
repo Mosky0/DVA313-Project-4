@@ -3,9 +3,9 @@ import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tool
 
 export default function ChartCard({ title, data, type = "line", dataKey = "value" }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-4 h-full">
-      <h3 className="text-sm font-medium text-gray-700 mb-3">{title}</h3>
-      <div className="w-full h-[200px]">
+    <div className="bg-white rounded-2xl shadow-sm p-4 h-full flex flex-col" style={{ minHeight: '200px' }}>
+      <h3 className="text-sm font-medium text-gray-700 mb-2">{title}</h3>
+      <div className="w-full flex-grow min-h-[150px]">
         <ResponsiveContainer width="100%" height="100%">
           {type === "area" ? (
             <AreaChart data={data}>
