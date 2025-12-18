@@ -26,6 +26,57 @@ function debounce(func, wait) {
 
 
 const Dashboard = React.memo(() => {
+  // Custom grid
+  const customGridStyles = `
+    .react-grid-item.react-grid-placeholder {
+      background: transparent !important;
+      border: none !important;
+      opacity: 0 !important;
+    }
+    
+    .react-grid-item > .react-resizable-handle {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      bottom: 0;
+      right: 0;
+      background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgOCA4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxwYXRoIGQ9Ik04IDBWOFY4Wk0wIDhIOFY4VjBaIiBmaWxsPSIjQ0NDOUNBIj48L3BhdGg+CiAgPHBhdGggZD0iTTcgMVY3SDFWN1YxWiIgc3Ryb2tlPSIjQ0NDOUNBIiBzdHJva2Utd2lkdGg9IjAuNSI+PC9wYXRoPgo8L3N2Zz4K') no-repeat;
+      background-position: bottom right;
+      padding: 0 3px 3px 0;
+      background-repeat: no-repeat;
+      background-origin: content-box;
+      box-sizing: border-box;
+      cursor: se-resize;
+    }
+    
+    .react-grid-item.resizing {
+      border: none !important;
+      box-shadow: none !important;
+    }
+    
+    .react-grid-item.react-draggable-dragging {
+      border: none !important;
+      box-shadow: none !important;
+    }
+    
+    .react-grid-item.cssTransforms {
+      transition-property: none;
+    }
+  `;
+
+  React.useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = customGridStyles;
+    document.head.appendChild(styleElement);
+    
+    // Cleanup function to remove the style element when component unmounts
+    return () => {
+      if (document.head.contains(styleElement)) {
+        document.head.removeChild(styleElement);
+      }
+    };
+  }, []);
+
   const [system, setSystem] = useState(null);
   const [containers, setContainers] = useState([]);
   const [events, setEvents] = useState([]);
