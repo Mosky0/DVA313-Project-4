@@ -80,6 +80,10 @@ const Dashboard = React.memo(() => {
   
 
 
+  useEffect(() => {    
+    const interval = setInterval(() => {
+      //debug
+    }, 5000);
     
     return () => clearInterval(interval);
   }, [layout, isEditMode]);
@@ -90,7 +94,7 @@ const Dashboard = React.memo(() => {
       if (!isStackedLayout) {
         const savedLayout = layout.map(item => ({
           ...item,
-          static: true
+          static: true 
         }));
         localStorage.setItem('dashboard_layout_v4', JSON.stringify(savedLayout));
       }
