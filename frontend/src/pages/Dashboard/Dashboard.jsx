@@ -105,8 +105,8 @@ const Dashboard = React.memo(() => {
     { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 2, "moved": false, "static": true },
     { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 2, "moved": false, "static": true },
     
-    { "i": "memory-trend-chart", "x": 0, "y": 3, "w": 4, "h": 1, "moved": false, "static": true },
-    { "i": "alerts-panel", "x": 4, "y": 3, "w": 4, "h": 1, "moved": false, "static": true },
+    { "i": "memory-trend-chart", "x": 0, "y": 3, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "alerts-panel", "x": 4, "y": 3, "w": 4, "h": 2, "moved": false, "static": true },
     
     { "i": "containers-table", "x": 0, "y": 4, "w": 8, "h": 3, "moved": false, "static": true }
   ];
