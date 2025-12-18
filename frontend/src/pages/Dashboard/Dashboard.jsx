@@ -46,18 +46,18 @@ const Dashboard = React.memo(() => {
 
   // Define default layout
   const defaultLayout = [
-    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
-    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
-    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
-    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
+    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
+    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
+    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": false },
     
-    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 4, "moved": false, "static": true },
-    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 4, "moved": false, "static": true },
+    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 4, "moved": false, "static": false },
+    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 4, "moved": false, "static": false },
     
-    { "i": "memory-trend-chart", "x": 0, "y": 5, "w": 4, "h": 2, "moved": false, "static": true },
-    { "i": "alerts-panel", "x": 4, "y": 5, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "memory-trend-chart", "x": 0, "y": 5, "w": 4, "h": 2, "moved": false, "static": false },
+    { "i": "alerts-panel", "x": 4, "y": 5, "w": 4, "h": 2, "moved": false, "static": false },
     
-    { "i": "containers-table", "x": 0, "y": 7, "w": 8, "h": 6, "moved": false, "static": true }
+    { "i": "containers-table", "x": 0, "y": 7, "w": 8, "h": 6, "moved": false, "static": false }
   ];
 
   useEffect(() => {
@@ -71,10 +71,16 @@ const Dashboard = React.memo(() => {
         
         if (isProblematicLayout) {
           localStorage.removeItem('dashboard_layout_v4');
+          setLayout(defaultLayout);
+        } else {
+          setLayout(parsedLayout);
         }
       } catch (e) {
         localStorage.removeItem('dashboard_layout_v4');
+        setLayout(defaultLayout);
       }
+    } else {
+      setLayout(defaultLayout);
     }
   }, []);
   
@@ -625,7 +631,7 @@ useEffect(() => {
       {/* Grid Layout */}
       <GridLayout
         className="layout"
-        layout={layout}
+        layout={layout.map(item => ({ ...item, static: !isEditMode }))}
         cols={8}
         rowHeight={110}
         width={width}
