@@ -43,7 +43,7 @@ export default function Containers() {
             .then((res) => (res.ok ? res.json() : null))
             .then((stats) => ({
               id: container.id,
-              cpu: stats?.cpu_percent !== undefined ? `${(stats.cpu_percent * 100).toFixed(2)}%` : "N/A",
+              cpu: stats?.cpu_percent !== undefined ? `${(stats.cpu_percent).toFixed(2)}%` : "N/A",
               mem: stats?.mem_usage || "N/A",
             }))
             .catch(() => ({ id: container.id, cpu: "N/A", mem: "N/A" }))
