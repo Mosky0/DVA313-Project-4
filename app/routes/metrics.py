@@ -299,106 +299,142 @@ def container_logs(container_id):
 # ---------------- FETCH PROCESSES ----------------
 @metrics_bp.route("/containers/<container_id>/processes")
 def container_processes(container_id):
-    """Return the list of processes running inside a container"""
+    """Return the list of processes running inside a container (exec_run with fallback to docker top)"""
     try:
         container = docker_client.containers.get(container_id)
-        #verify it is running
         container.reload()
+
         if container.status != "running":
             return jsonify({
                 "container": container.name,
+                "status": container.status,
                 "processes": [],
-                "error": "Container is not currently running."
-            }), 200 
-        
-        #execute top inside the container
-
-        top_data = container.top(ps_args="aux")
-        titles = top_data.get("Titles", [])
-        processes_total = top_data.get("Processes", [])
-
-        #map the titles to each process info
-        pid_idx = -1
-        cpu_idx = -1
-        mem_idx = -1 
-        time_idx = -1 
-        stat_idx = -1
-        cmd_idx = -1
-
-        #find indexes
-        for i, title in enumerate(titles):
-            title_upper = title.upper()
-            if title_upper == "PID":
-                pid_idx = i
-            elif title_upper in ["%CPU", "CPU"]:
-                cpu_idx = i
-            elif title_upper in ["%MEM", "MEM"]:
-                mem_idx = i
-            elif title_upper == "TIME":
-                time_idx = i
-            elif title_upper in ["STAT", "STATE", "S"]:
-                stat_idx = i
-            elif title_upper in ["CMD", "COMMAND"]:
-                cmd_idx = i
-
-        def normalize_state(state_raw):
-            """Convert Linux process state codes to human-readable"""
-            if not state_raw:
-                return "Unknown"
-            
-            state_code = state_raw[0].upper()
-            
-            state_map = {
-                'R': 'Running',
-                'S': 'Sleeping',
-                'D': 'Waiting',
-                'Z': 'Zombie',
-                'T': 'Stopped',
-                'I': 'Idle',
-            }
-            
-            return state_map.get(state_code, state_raw)
+                "message": "Container is not currently running."
+            }), 200
 
         processes = []
+        source = "exec_run"
 
-        for proc_row in processes_total:
-            try:
-                state_raw = proc_row[stat_idx] if stat_idx >= 0 and len(proc_row) > stat_idx else ""
-                state = normalize_state(state_raw)
-                
-                cpu_val = proc_row[cpu_idx] if cpu_idx >= 0 and len(proc_row) > cpu_idx else "0.0"
-                mem_val = proc_row[mem_idx] if mem_idx >= 0 and len(proc_row) > mem_idx else "0.0"
-                
+        try:
+            result = container.exec_run(
+                cmd="ps auxwwH",
+                stdout=True,
+                stderr=True
+            )
+
+            if result.exit_code != 0:
+                raise RuntimeError("ps command not available")
+
+            ps_output = result.output.decode("utf-8", errors="replace")
+            lines = ps_output.strip().split("\n")
+
+            if len(lines) < 2:
+                raise RuntimeError("Invalid ps output")
+
+            header = lines[0].split()
+
+            pid_idx = header.index("PID")
+            cpu_idx = header.index("%CPU")
+            mem_idx = header.index("%MEM")
+            stat_idx = header.index("STAT")
+            time_idx = header.index("TIME")
+            cmd_idx = header.index("COMMAND")
+
+            def normalize_state(state_raw):
+                return {
+                    'R': 'Running',
+                    'S': 'Sleeping',
+                    'D': 'Waiting',
+                    'Z': 'Zombie',
+                    'T': 'Stopped',
+                    'I': 'Idle',
+                }.get(state_raw[:1].upper(), state_raw or "Unknown")
+
+            for line in lines[1:]:
+                parts = line.split(None, cmd_idx)
+                if len(parts) <= cmd_idx:
+                    continue
+
                 try:
-                    cpu_float = float(cpu_val)
-                    mem_float = float(mem_val)
-                except (ValueError, TypeError):
-                    cpu_float = 0.0
-                    mem_float = 0.0
-                proc_info = {
-                    "pid": proc_row[pid_idx] if pid_idx >= 0 and len(proc_row) > pid_idx else "—",
-                    "cpu_percent": cpu_float,
-                    "mem_percent": mem_float,
-                    "state": state,
-                    "state_raw": state_raw,  
-                    "time": proc_row[time_idx] if time_idx >= 0 and len(proc_row) > time_idx else "—",
-                    "command": proc_row[cmd_idx] if cmd_idx >= 0 and len(proc_row) > cmd_idx else "—",
-                }
-                processes.append(proc_info)
-            except (IndexError, ValueError) as e:
-                print(f"Error parsing process row: {e}")
-                continue
+                    processes.append({
+                        "pid": parts[pid_idx],
+                        "cpu_percent": float(parts[cpu_idx]),
+                        "mem_percent": float(parts[mem_idx]),
+                        "state": normalize_state(parts[stat_idx]),
+                        "state_raw": parts[stat_idx],
+                        "time": parts[time_idx],
+                        "command": parts[cmd_idx],
+                    })
+                except Exception:
+                    continue
+        #in case ps is not available, fallback to docker top
+        except Exception as e:
+            logger.warning(
+                f"exec_run ps failed for container {container_id}, falling back to docker top: {e}"
+            )
+            source = "docker_top"
+
+            top_data = container.top(ps_args="auxwwH")
+            titles = top_data.get("Titles", [])
+            rows = top_data.get("Processes", [])
+
+            def idx(name_variants):
+                for i, t in enumerate(titles):
+                    if t.upper() in name_variants:
+                        return i
+                return -1
+
+            pid_idx = idx({"PID"})
+            cpu_idx = idx({"%CPU", "CPU"})
+            mem_idx = idx({"%MEM", "MEM"})
+            stat_idx = idx({"STAT", "STATE", "S"})
+            time_idx = idx({"TIME"})
+            cmd_idx = idx({"CMD", "COMMAND"})
+
+            def normalize_state(state_raw):
+                return {
+                    'R': 'Running',
+                    'S': 'Sleeping',
+                    'D': 'Waiting',
+                    'Z': 'Zombie',
+                    'T': 'Stopped',
+                    'I': 'Idle',
+                }.get(state_raw[:1].upper(), state_raw or "Unknown")
+
+            for row in rows:
+                try:
+                    processes.append({
+                        "pid": row[pid_idx] if pid_idx >= 0 else "—",
+                        "cpu_percent": float(row[cpu_idx]) if cpu_idx >= 0 else 0.0,
+                        "mem_percent": float(row[mem_idx]) if mem_idx >= 0 else 0.0,
+                        "state": normalize_state(row[stat_idx]) if stat_idx >= 0 else "Unknown",
+                        "state_raw": row[stat_idx] if stat_idx >= 0 else "",
+                        "time": row[time_idx] if time_idx >= 0 else "—",
+                        "command": row[cmd_idx] if cmd_idx >= 0 else "—",
+                    })
+                except Exception:
+                    continue
+
+        processes.sort(key=lambda p: p["cpu_percent"], reverse=True)
 
         return jsonify({
             "container": container.name,
+            "container_id": container_id,
             "status": container.status,
+            "source": source,
+            "total_count": len(processes),
             "processes": processes,
         }), 200
-        
-    except docker.errors.NotFound as e:
-        return jsonify({"error": "Container not found",
-                        "container_id": container_id}), 410
-    
-    except docker.errors.Exception as e:
-        return jsonify({"error": "Unexpected error occurred",
-                        "message": "Failed to retrieve container processes."}), 500
+
+    except docker.errors.NotFound:
+        return jsonify({
+            "error": "Container not found",
+            "container_id": container_id
+        }), 410
+
+    except Exception as e:
+        logger.error(f"Error fetching processes for {container_id}: {e}")
+        return jsonify({
+            "error": "Unexpected error occurred",
+            "message": str(e)
+        }), 500
