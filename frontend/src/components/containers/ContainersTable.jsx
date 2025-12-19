@@ -73,7 +73,7 @@ export default function ContainersTable({ containers = [] }) {
 
 
   return (
-    <div className="bg-white rounded-2xl shadow p-4">
+    <>
       {/* Search + filter */}
       <div className="flex items-center justify-between mb-3 gap-3">
         <div className="flex items-center gap-3">
@@ -172,6 +172,6 @@ export default function ContainersTable({ containers = [] }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </>
   );
 }

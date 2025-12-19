@@ -4,8 +4,11 @@ import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
 import { API_BASE_URL } from "../../config";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
+  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid
 } from "recharts";
+import GridLayout from "react-grid-layout";
+import "./../../../node_modules/react-grid-layout/css/styles.css";
+import "./../../../node_modules/react-resizable/css/styles.css";
 
 
 // Debounce function to limit the rate of function execution
@@ -23,6 +26,57 @@ function debounce(func, wait) {
 
 
 const Dashboard = React.memo(() => {
+  // Custom grid
+  const customGridStyles = `
+    .react-grid-item.react-grid-placeholder {
+      background: transparent !important;
+      border: none !important;
+      opacity: 0 !important;
+    }
+    
+    .react-grid-item > .react-resizable-handle {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      bottom: 0;
+      right: 0;
+      background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgOCA4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxwYXRoIGQ9Ik04IDBWOFY4Wk0wIDhIOFY4VjBaIiBmaWxsPSIjQ0NDOUNBIj48L3BhdGg+CiAgPHBhdGggZD0iTTcgMVY3SDFWN1YxWiIgc3Ryb2tlPSIjQ0NDOUNBIiBzdHJva2Utd2lkdGg9IjAuNSI+PC9wYXRoPgo8L3N2Zz4K') no-repeat;
+      background-position: bottom right;
+      padding: 0 3px 3px 0;
+      background-repeat: no-repeat;
+      background-origin: content-box;
+      box-sizing: border-box;
+      cursor: se-resize;
+    }
+    
+    .react-grid-item.resizing {
+      border: none !important;
+      box-shadow: none !important;
+    }
+    
+    .react-grid-item.react-draggable-dragging {
+      border: none !important;
+      box-shadow: none !important;
+    }
+    
+    .react-grid-item.cssTransforms {
+      transition-property: none;
+    }
+  `;
+
+  React.useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = customGridStyles;
+    document.head.appendChild(styleElement);
+    
+    // Cleanup function to remove the style element when component unmounts
+    return () => {
+      if (document.head.contains(styleElement)) {
+        document.head.removeChild(styleElement);
+      }
+    };
+  }, []);
+
   const [system, setSystem] = useState(null);
   const [containers, setContainers] = useState([]);
   const [events, setEvents] = useState([]);
@@ -35,10 +89,95 @@ const Dashboard = React.memo(() => {
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
   const [systemCpuHistory, setSystemCpuHistory] = useState([]);
   const [backendStatus, setBackendStatus] = useState("connected");
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [layout, setLayout] = useState([]);
+  const [width, setWidth] = useState(window.innerWidth - 100);
+
   const wasDisconnected = useRef(false);
 
+  // Define default layout
+  const defaultLayout = [
+    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    
+    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 2, "moved": false, "static": true },
+    
+    { "i": "memory-trend-chart", "x": 0, "y": 3, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "alerts-panel", "x": 4, "y": 3, "w": 4, "h": 2, "moved": false, "static": true },
+    
+    { "i": "containers-table", "x": 0, "y": 4, "w": 8, "h": 3, "moved": false, "static": true }
+  ];
+
+  useEffect(() => {
+    const savedLayoutV4 = localStorage.getItem('dashboard_layout_v4');
+    
+    if (savedLayoutV4) {
+      try {
+        const parsedLayout = JSON.parse(savedLayoutV4);
+        
+        const isProblematicLayout = parsedLayout.every(item => item.w === 1 && item.h === 1);
+        
+        if (isProblematicLayout) {
+          localStorage.removeItem('dashboard_layout_v4');
+          setLayout(defaultLayout);
+        } else {
+          setLayout(parsedLayout);
+        }
+      } catch (e) {
+        localStorage.removeItem('dashboard_layout_v4');
+        setLayout(defaultLayout);
+      }
+    } else {
+      setLayout(defaultLayout);
+    }
+  }, []);
+  
 
 
+
+  useEffect(() => {
+  }, [layout]);
+
+  const onLayoutChange = (newLayout) => {
+    const isValidLayout = newLayout.every(item => 
+      typeof item.x === 'number' && 
+      typeof item.y === 'number' && 
+      typeof item.w === 'number' && 
+      typeof item.h === 'number' &&
+      item.w > 0 && item.h > 0
+    );
+    
+    const isStackedLayout = newLayout.length > 0 && newLayout.every(item => item.w === 1 && item.h === 1);
+    
+    if (isValidLayout && !isStackedLayout) {
+      setLayout(newLayout);
+    } else if (isEditMode) {
+      setTimeout(() => {
+        setLayout(defaultLayout);
+      }, 50);
+    } else {
+      setLayout(newLayout);
+    }
+  };
+
+
+
+  const resetToDefaultLayout = () => {
+    setTimeout(() => {
+      setLayout(defaultLayout);
+    }, 50);
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWidth(window.innerWidth - 100);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Fetch system data
   useEffect(() => {
@@ -129,22 +268,28 @@ const Dashboard = React.memo(() => {
               return stats ? { ...c, ...stats } : c;
             });
             setContainers(updated);
+
           }
         }
         if (evRes.ok) {
           const evData = await evRes.json();
-          if (mounted) setEvents(Array.isArray(evData) ? evData : []);
+          if (mounted) {
+            setEvents(Array.isArray(evData) ? evData : []);
+          }
         } else {
-          if (mounted) setEvents([]);
+          if (mounted) {
+            setEvents([]);
+          }
         }
 
       } catch (e) {
       console.error("fetchSystemData error:", e);
       
       } finally {
-        if (mounted) 
+        if (mounted) {
           setLoadingSys(false);
           setLoadingEvents(false);
+        }
       }
     };
 
@@ -478,7 +623,7 @@ useEffect(() => {
    
     const newSelectedCores = { systemCpu: true };
     if (system?.cpu?.per_core) {
-      system.cpu.per_core.forEach((_, i) => {
+      system?.cpu?.per_core?.forEach((_, i) => {
         newSelectedCores[i] = newSelectAll;
       });
     }
@@ -500,197 +645,289 @@ useEffect(() => {
   </div>
 )}
 
+      {/* Edit Controls */}
+      <div className="flex justify-end mb-4 gap-2">
+        {!isEditMode ? (
+          <button 
+            onClick={() => setIsEditMode(true)}
+            className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+          >
+            Edit Layout
+          </button>
+        ) : (
+          <>
+            <button 
+              onClick={resetToDefaultLayout}
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            >
+              Reset
+            </button>
+            <button 
+              onClick={() => {
+                const layoutToSave = layout.map(item => ({ ...item, static: true }));
+                localStorage.setItem('dashboard_layout_v4', JSON.stringify(layoutToSave));
+                setIsEditMode(false);
+              }}
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            >
+              Save
+            </button>
+            <button 
+              onClick={() => {
+                const savedLayoutV4 = localStorage.getItem('dashboard_layout_v4');
+                if (savedLayoutV4) {
+                  try {
+                    const parsedLayout = JSON.parse(savedLayoutV4);
+                    setLayout(parsedLayout);
+                  } catch (e) {
+                    setLayout(defaultLayout);
+                  }
+                } else {
+                  setLayout(defaultLayout);
+                }
+                setIsEditMode(false);
+              }}
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+          </>
+        )}
+      </div>
 
-
-      {/* TOP CARDS */}
-     {!loadingSys && system && (
-     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-          <div className="bg-white rounded-xl p-4 shadow">
-            <div className="text-xs text-gray-500">Load (1/5/15)</div>
+      {/* Grid Layout */}
+      <GridLayout
+        className="layout"
+        layout={layout.map(item => ({ ...item, static: !isEditMode }))}
+        cols={8}
+        rowHeight={40}
+        width={width}
+        isDraggable={isEditMode}
+        isResizable={isEditMode}
+        onLayoutChange={onLayoutChange}
+        margin={[10, 10]}
+        containerPadding={[15, 15]}
+      >
+        {/* TOP CARDS */}
+        <div key="load-card" className="bg-white rounded-xl p-4 shadow">
+          <div className="text-xs text-gray-500">Load (1/5/15)</div>
+          {loadingSys || !system ? (
+            <div className="text-lg font-semibold text-gray-400">Loading...</div>
+          ) : (
             <div className="text-lg font-semibold">
-              {system.load.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
+              {system?.load?.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
             </div>
+          )}
+          {loadingSys || !system ? (
+            <div className="text-xs text-gray-400 mt-1">Processes: — • Running: —</div>
+          ) : (
             <div className="text-xs text-gray-400 mt-1">
               Processes: {system.total_processes} • Running: {system.running}
             </div>
-          </div>
+          )}
+        </div>
 
+        <div key="cpu-card" className="bg-white rounded-xl p-4 shadow flex items-center">
+          {loadingSys || !system ? (
+            <CircleMetric value={0} label="System CPU" />
+          ) : (
+            <CircleMetric value={Math.round(system?.cpu?.total_percent || 0)} label="System CPU" />
+          )}
+        </div>
 
-          <div className="bg-white rounded-xl p-4 shadow flex items-center">
-            <CircleMetric value={Math.round(system.cpu.total_percent || 0)} label="System CPU" />
-          </div>
-
-
-          <div className="bg-white rounded-xl p-4 shadow">
-            <div className="text-xs text-gray-500">Memory</div>
+        <div key="memory-card" className="bg-white rounded-xl p-4 shadow">
+          <div className="text-xs text-gray-500">Memory</div>
+          {loadingSys || !system ? (
+            <div className="mt-2 text-sm font-semibold text-gray-400">—</div>
+          ) : (
             <div className="mt-2 text-sm font-semibold">{memPct}%</div>
-            <div className="mt-3">
-              <div className="bg-gray-200 h-2 rounded overflow-hidden">
-                <div className="h-2 bg-[#2496ED]" style={{ width: `${memPct}%` }} />
-              </div>
+          )}
+          <div className="mt-3">
+            <div className="bg-gray-200 h-2 rounded overflow-hidden">
+              <div 
+                className="h-2 bg-[#2496ED]" 
+                style={{ width: `${loadingSys || !system ? 0 : memPct}%` }} 
+              />
             </div>
-          </div>
-
-
-          <div className="bg-white rounded-xl p-4 shadow">
-            <div className="text-xs text-gray-500">Uptime</div>
-            <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
-            <div className="text-xs text-gray-400 mt-1">Host</div>
           </div>
         </div>
-      )}
+
+        <div key="uptime-card" className="bg-white rounded-xl p-4 shadow">
+          <div className="text-xs text-gray-500">Uptime</div>
+          {loadingSys || !system ? (
+            <div className="mt-2 text-lg font-semibold text-gray-400">Loading...</div>
+          ) : (
+            <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
+          )}
+          <div className="text-xs text-gray-400 mt-1">Host</div>
+        </div>
 
 
-      {/* CPU ACTIVITY (PER CORE) + TREND */}
-      {!loadingSys && system && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* CPU ACTIVITY (PER CORE) */}
+      <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
+        <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
 
-          <div className="bg-white rounded-2xl shadow p-4">
-            <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={selectAllCores}
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 cursor-pointer"
-                />
-                <div className="w-12 text-xs text-gray-600">All Cores</div>
-                <div className="flex-1"></div>
-              </div>
-             
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={!!selectedCores.systemCpu}
-                  onChange={handleSystemCpuToggle}
-                  className="w-4 h-4 cursor-pointer"
-                />
-                <div className="text-xs text-gray-600">System CPU</div>
-              </div>
-             
-              {system.cpu.per_core.length ? (
-                system.cpu.per_core.map((v, i) => {
-                  const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0
-                    ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value
-                    : v;
-                  return (
-                    <div key={i} className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={!!selectedCores[i]}
-                        onChange={() => handleCoreToggle(i)}
-                        className="w-4 h-4 cursor-pointer"
-                      />
-                      <div className="w-12 text-xs text-gray-600">CPU {i}</div>
-                      <div className="flex-1">
-                        <div className="bg-gray-100 rounded h-3 overflow-hidden">
-                          <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
-                        </div>
-                      </div>
-                      <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
+        <div className="flex-grow overflow-y-auto min-h-[150px] space-y-3">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={selectAllCores}
+              onChange={handleSelectAll}
+              className="w-4 h-4 cursor-pointer"
+              disabled={loadingSys || !system}
+            />
+            <div className="w-12 text-xs text-gray-600">All Cores</div>
+            <div className="flex-1"></div>
+          </div>
+         
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={!!selectedCores.systemCpu}
+              onChange={handleSystemCpuToggle}
+              className="w-4 h-4 cursor-pointer"
+              disabled={loadingSys || !system}
+            />
+            <div className="text-xs text-gray-600">System CPU</div>
+          </div>
+         
+          {loadingSys || !system ? (
+            <div className="text-xs text-gray-500">Loading CPU data...</div>
+          ) : system?.cpu?.per_core?.length ? (
+            system?.cpu?.per_core?.map((v, i) => {
+              const displayValue = cpuCoreHistory && cpuCoreHistory[i] && cpuCoreHistory[i].length > 0
+                ? cpuCoreHistory[i][cpuCoreHistory[i].length - 1].value
+                : v;
+              return (
+                <div key={`cpu-core-${i}`} className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={!!selectedCores[i]}
+                    onChange={() => handleCoreToggle(i)}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                  <div className="w-12 text-xs text-gray-600">CPU {i}</div>
+                  <div className="flex-1">
+                    <div className="bg-gray-100 rounded h-3 overflow-hidden">
+                      <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
                     </div>
-                  );
-                })
-              ) : (
-                <div className="text-xs text-gray-500">No per-core data.</div>
-              )}
+                  </div>
+                  <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-xs text-gray-500">No per-core data.</div>
+          )}
+        </div>
+      </div>
+
+      {/* CPU TREND */}
+      
+        <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
+
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium">CPU trend (selected cores)</div>
+            <div className="text-xs text-gray-500">
+              {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
             </div>
           </div>
-
-
-          <div className="bg-white rounded-2xl shadow p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-medium">CPU trend (selected cores)</div>
-              <div className="text-xs text-gray-500">Selected: {Object.values(selectedCores).filter(Boolean).length} items</div>
-            </div>
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={cpuTrendSeries}>
-                  <XAxis dataKey="time" stroke="#888" />
-                  <YAxis stroke="#888" domain={[0, 100]} />
-                  <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
-                  <Legend />
-                  {selectedCores.systemCpu && (
+          <div className="flex-grow min-h-[100px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={cpuTrendSeries}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="time" stroke="#888" tick={{ fontSize: 12 }} />
+                <YAxis stroke="#888" domain={[0, 100]} tick={{ fontSize: 12 }} width={30} />
+                <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                {selectedCores.systemCpu && (
+                  <Line
+                    type="monotone"
+                    dataKey="System CPU"
+                    stroke="#ff6b6b"
+                    dot={false}
+                    strokeWidth={2}
+                  />
+                )}
+                {system?.cpu?.per_core?.map((_, coreIdx) =>
+                  selectedCores[coreIdx] ? (
                     <Line
+                      key={coreIdx}
                       type="monotone"
-                      dataKey="System CPU"
-                      stroke="#ff6b6b"
+                      dataKey={`Core ${coreIdx}`}
+                      stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
                       dot={false}
                       strokeWidth={2}
                     />
-                  )}
-                  {system.cpu.per_core.map((_, coreIdx) =>
-                    selectedCores[coreIdx] ? (
-                      <Line
-                        key={coreIdx}
-                        type="monotone"
-                        dataKey={`Core ${coreIdx}`}
-                        stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
-                        dot={false}
-                        strokeWidth={2}
-                      />
-                    ) : null
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                  ) : null
+                )}
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
-      )}
 
 
-      {/* Memory trend + alerts */}
-     {!loadingSys && system && (
-     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          <div className="bg-white rounded-2xl shadow p-4">
-            <ChartCard
-              title="System Memory trend"
-              data={memoryTrendSeries}
-              type="area"
-            />
+      {/* Memory trend */}
+      <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
+        {loadingSys || !system ? (
+          <div className="flex items-center justify-center flex-grow text-gray-500">
+            Loading memory trend data...
           </div>
+        ) : (
+          <ChartCard
+            title="System Memory trend"
+            data={memoryTrendSeries}
+            type="area"
+          />
+        )}
+      </div>
 
-
-          <div className="bg-white rounded-2xl shadow p-4">
-            <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
-            <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
-              {derivedAlerts.length === 0 ? (
-                <div className="text-xs text-gray-400">No alerts or events</div>
-              ) : (
-                derivedAlerts.map((a, i) => (
-                  <div
-                    key={i}
-                    className={`p-2 rounded flex items-start gap-3 ${
-                      a.severity === "critical" ? "bg-red-50" : a.severity === "warning" ? "bg-yellow-50" : "bg-gray-50"
-                    }`}
-                  >
-                    <div
-                      className={`w-2 h-6 rounded ${
-                        a.severity === "critical" ? "bg-red-500" : a.severity === "warning" ? "bg-yellow-400" : "bg-gray-400"
-                      }`}
-                    />
-                    <div className="flex-1">
-                      <div className="text-xs text-gray-600 mb-1">{a.time}</div>
-                      <div className="text-sm">{a.message}</div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+      {/* Alerts panel */}
+      <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4">
+        <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
+        <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
+          {loadingSys || !system ? (
+            <div className="text-xs text-gray-400">Loading alerts...</div>
+          ) : derivedAlerts.length === 0 ? (
+            <div className="text-xs text-gray-400">No alerts or events</div>
+          ) : (
+            derivedAlerts.map((a, i) => (
+              <div
+                key={`alert-${i}`}
+                className={`p-2 rounded flex items-start gap-3 ${
+                  a.severity === "critical" ? "bg-red-50" : a.severity === "warning" ? "bg-yellow-50" : "bg-gray-50"
+                }`}
+              >
+                <div
+                  className={`w-2 h-6 rounded ${
+                    a.severity === "critical" ? "bg-red-500" : a.severity === "warning" ? "bg-yellow-400" : "bg-gray-400"
+                  }`}
+                />
+                <div className="flex-1">
+                  <div className="text-xs text-gray-600 mb-1">{a.time}</div>
+                  <div className="text-sm">{a.message}</div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </div>
 
 
       {/* Containers table */}
-      {!loadingContainers && (
-        <div>
-          <ContainersTable containers={containers} />
-        </div>
-      )}
+      <div key="containers-table" className="bg-white rounded-2xl shadow p-4 h-full flex flex-col">
+        <div className="text-sm font-medium mb-3">Containers</div>
+        {loadingContainers ? (
+          <div className="flex items-center justify-center flex-grow text-gray-500">
+            Loading containers...
+          </div>
+        ) : (
+          <div className="flex-grow overflow-y-auto">
+            <ContainersTable containers={containers} />
+          </div>
+        )}
+      </div>
+    </GridLayout>
     </div>
   );
 });
