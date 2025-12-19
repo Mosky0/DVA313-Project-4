@@ -425,16 +425,49 @@ def container_processes(container_id):
             "total_count": len(processes),
             "processes": processes,
         }), 200
+        
+    except docker.errors.NotFound as e:
+        return jsonify({"error": "Container not found",
+                        "container_id": container_id}), 410
+    
+    except docker.errors.Exception as e:
+        return jsonify({"error": "Unexpected error occurred",
+                        "message": "Failed to retrieve container processes."}), 500
+    
+# ---------------- SYSTEM METRICS HISTORY ----------------
+@metrics_bp.route("/containers/<container_id>/stop", methods=["POST"])
+def stop_container(container_id):
+    """Stop a running container."""
+    try:
+        container = docker_client.containers.get(container_id)
+        container.reload()
 
-    except docker.errors.NotFound:
+        if container.status != "running":
+            return jsonify({
+                "message": "Container is not running.",
+                "container_id": container_id,
+                "status": container.status
+            }), 200
+
+        container.stop()
+
+        return jsonify({
+            "message": "Container stopped successfully.",
+            "container_id": container_id,
+            "name": container.name,
+            "status": "stopped"
+        }), 200
+    
+    except NotFound as e:
+        logger.error(f"Container not found: {container_id} : {e}")
         return jsonify({
             "error": "Container not found",
-            "container_id": container_id
+            "container_id": container_id,
         }), 410
-
+    
     except Exception as e:
-        logger.error(f"Error fetching processes for {container_id}: {e}")
+        logger.error(f"Error stopping container {container_id}: {e}")
         return jsonify({
             "error": "Unexpected error occurred",
-            "message": str(e)
+            "message": "Failed to stop container",
         }), 500
