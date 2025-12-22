@@ -108,7 +108,7 @@ const Dashboard = React.memo(() => {
     { "i": "memory-trend-chart", "x": 0, "y": 3, "w": 4, "h": 2, "moved": false, "static": true },
     { "i": "alerts-panel", "x": 4, "y": 3, "w": 4, "h": 2, "moved": false, "static": true },
     
-    { "i": "containers-table", "x": 0, "y": 4, "w": 8, "h": 3, "moved": false, "static": true }
+    { "i": "containers-table", "x": 0, "y": 4.5, "w": 8, "h": 3, "moved": false, "static": true }
   ];
 
   useEffect(() => {
@@ -883,9 +883,9 @@ useEffect(() => {
       </div>
 
       {/* Alerts panel */}
-      <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4">
+      <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
         <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
-        <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
+        <div className="flex-grow overflow-y-auto min-h-[50px] space-y-2 text-sm text-gray-700">
           {loadingSys || !system ? (
             <div className="text-xs text-gray-400">Loading alerts...</div>
           ) : derivedAlerts.length === 0 ? (
