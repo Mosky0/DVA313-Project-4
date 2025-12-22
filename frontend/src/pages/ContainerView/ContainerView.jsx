@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { useParams, useLocation } from "react-router-dom";
+import { FaDocker } from "react-icons/fa";
 import {
   LineChart,
   Line,
@@ -14,7 +15,7 @@ import { API_BASE_URL } from "../../config";
 import { containerCache } from "../../utils/cache";
 
 export default function ContainerView() {
-  const { id } = useParams(); // from route /containers/:id
+  const { id } = useParams(); 
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("details");
   const containerName = location.state?.name || "";
@@ -57,7 +58,7 @@ export default function ContainerView() {
           status: "exited",
           cpu_percent: 0,
         }));
-        setProcesses([]); //clear them so it closes faster
+        setProcesses([]); 
       } else {
         toast.error(data.message || "Failed to stop container.", {
           toastId: TOAST_ID,
@@ -75,11 +76,11 @@ export default function ContainerView() {
     }
   };
 
-  // --------- FETCH STATS (poll every 5s) ----------
+  // --------- FETCH STATS----------
   useEffect(() => {
     let intervalId;
     const TOAST_ID = "status-error-container-view";
-    const POL_TIME_MS = 3000;
+    const POL_TIME_MS = 5000;
 
     const fetchStats = async () => {
       const statsCacheKey = `container_stats_${id}`;
@@ -169,7 +170,7 @@ export default function ContainerView() {
           const cpuHistoryData = (data.cpuHistory || []).map((item) => ({
             time: new Date(item.timestamp).toLocaleTimeString(),
             value: item.value,
-          }));
+          })).slice(-100); 
           setCpuHistory(cpuHistoryData);
         })
         .catch((err) => {
@@ -282,8 +283,15 @@ export default function ContainerView() {
 
   if (statsLoading && !stats) {
     return (
-      <div className="p-8 bg-gray-50 min-h-screen w-full">
-        <p className="text-gray-500 text-sm">Loading container data…</p>
+      <div className="p-6 flex items-center justify-center min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
+        <div className="flex flex-col items-center gap-6 bg-white p-8 rounded-2xl shadow-lg">
+          <div className="relative">
+            <FaDocker className="text-6xl text-blue-600 animate-pulse" />
+            <div className="absolute inset-0 w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mt-2"></div>
+          </div>
+          <div className="text-lg font-semibold text-gray-700">Loading container data…</div>
+          <div className="text-sm text-gray-500">Fetching latest data</div>
+        </div>
       </div>
     );
   }
