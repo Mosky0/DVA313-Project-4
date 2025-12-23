@@ -417,6 +417,9 @@ def container_processes(container_id):
 
         processes.sort(key=lambda p: p["cpu_percent"], reverse=True)
 
+        # Limit to top 100 processes to prevent memory issues
+        processes = processes[:100]
+
         return jsonify({
             "container": container.name,
             "container_id": container_id,
