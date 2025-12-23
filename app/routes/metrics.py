@@ -193,11 +193,17 @@ def list_containers_with_stats():
             }
             if c.status == "running":
                 try:
-                    usage = compute_container_usage(c)
-                    stats_data["cpu"] = f"{usage['cpu_percent']:.2f}%"
-                    stats_data["mem"] = usage["mem_usage"]
+                    latest_stats = getLatestContainerMetrics(c.short_id)
+                    if latest_stats:
+                        stats_data["cpu"] = f"{latest_stats.get('cpu_percent', 0):.2f}%"
+                        stats_data["mem"] = latest_stats.get("mem_usage", "N/A")
+                    else:
+                        stats_data["cpu"] = "N/A"
+                        stats_data["mem"] = "N/A"
                 except Exception as e:
-                    logger.warning(f"Error getting stats for container {c.short_id}: {e}")
+                    logger.warning(f"Error getting cached stats for container {c.short_id}: {e}")
+                    stats_data["cpu"] = "N/A"
+                    stats_data["mem"] = "N/A"
             result.append(stats_data)
         return jsonify(result), 200
     except Exception as e:
