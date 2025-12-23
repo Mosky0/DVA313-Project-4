@@ -883,9 +883,14 @@ useEffect(() => {
       </div>
 
       {/* Alerts panel */}
-      <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4">
-        <div className="text-sm font-medium mb-3">Alerts & Recent Events</div>
-        <div className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
+      <div
+  key="alerts-panel"
+  className="bg-white rounded-2xl shadow p-4 flex flex-col h-full overflow-hidden"
+>
+  <div className="text-sm font-medium mb-3">
+    Alerts & Recent Events
+  </div>
+        <div className="space-y-2 text-sm text-gray-700 h-80 overflow-y-auto">
           {loadingSys || !system ? (
             <div className="text-xs text-gray-400">Loading alerts...</div>
           ) : derivedAlerts.length === 0 ? (
