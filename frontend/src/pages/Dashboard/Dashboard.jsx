@@ -36,19 +36,24 @@ const Dashboard = React.memo(() => {
     
     .react-grid-item > .react-resizable-handle {
       position: absolute;
-      width: 20px;
-      height: 20px;
-      bottom: 0;
-      right: 0;
-      background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgOCA4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxwYXRoIGQ9Ik04IDBWOFY4Wk0wIDhIOFY4VjBaIiBmaWxsPSIjQ0NDOUNBIj48L3BhdGg+CiAgPHBhdGggZD0iTTcgMVY3SDFWN1YxWiIgc3Ryb2tlPSIjQ0NDOUNBIiBzdHJva2Utd2lkdGg9IjAuNSI+PC9wYXRoPgo8L3N2Zz4K') no-repeat;
-      background-position: bottom right;
-      padding: 0 3px 3px 0;
-      background-repeat: no-repeat;
-      background-origin: content-box;
-      box-sizing: border-box;
+      width: 16px;
+      height: 16px;
+      bottom: 2px;
+      right: 2px;
       cursor: se-resize;
+      background-repeat: no-repeat;
+      background-position: bottom right;
+      box-sizing: border-box;
+
+      background-image: url("data:image/svg+xml;utf8,\
+    <svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'>\
+      <line x1='2' y1='10' x2='10' y2='2' stroke='%239CA3AF' stroke-width='1'/>\
+      <line x1='5' y1='10' x2='10' y2='5' stroke='%239CA3AF' stroke-width='1'/>\
+      <line x1='8' y1='10' x2='10' y2='8' stroke='%239CA3AF' stroke-width='1'/>\
+    </svg>");
     }
-    
+
+        
     .react-grid-item.resizing {
       border: none !important;
       box-shadow: none !important;
@@ -882,9 +887,9 @@ useEffect(() => {
           </div>
           <div className="flex-grow flex items-center justify-center min-h-[40px]">
             {loadingSys || !system ? (
-              <CircleMetric value={0} label="System CPU" />
+              <CircleMetric value={0} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
             ) : (
-              <CircleMetric value={Math.round(system?.cpu?.total_percent || 0)} label="System CPU" />
+              <CircleMetric value={Math.round(system?.cpu?.total_percent || 0)} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
             )}
           </div>
         </div>
