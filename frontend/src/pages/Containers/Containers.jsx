@@ -27,9 +27,9 @@ export default function Containers() {
         const res = await fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to load containers");
         const data = await res.json();
-
+    
         if (!mounted) return;
-
+    
         const mapped = data.map((c) => ({
           id: c.id,
           name: c.name,
@@ -37,29 +37,28 @@ export default function Containers() {
           mem: "-",
           status: normalizeStatus(c.status),
         }));
-
-        const statsPromises = mapped.map((container) =>
-          fetch(`${API_BASE_URL}/containers/${container.id}/stats`)
-            .then((res) => (res.ok ? res.json() : null))
-            .then((stats) => ({
-              id: container.id,
+    
+        mapped.forEach(async (container) => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/containers/${container.id}/stats`);
+            const stats = res.ok ? await res.json() : null;
+            const updatedContainer = {
+              ...container,
               cpu: stats?.cpu_percent !== undefined ? `${(stats.cpu_percent).toFixed(2)}%` : "N/A",
               mem: stats?.mem_usage || "N/A",
-            }))
-            .catch(() => ({ id: container.id, cpu: "N/A", mem: "N/A" }))
-        );
-
-        const statsResults = await Promise.all(statsPromises);
-
-        if (mounted) {
-          const updatedRows = mapped.map((row) => {
-            const stats = statsResults.find((s) => s.id === row.id);
-            return stats ? { ...row, ...stats } : row;
-          });
-          setRows(updatedRows);
-          setLoading(false);
-          setErrorShown(false);
-        }
+            };
+            if (mounted) {
+              setRows((prevRows) => [...prevRows, updatedContainer]);
+              setLoading(false);
+              setErrorShown(false);
+            }
+          } catch {
+            if (mounted) {
+              setRows((prevRows) => [...prevRows, { ...container, cpu: "N/A", mem: "N/A" }]);
+              setLoading(false);
+            }
+          }
+        });
       } catch (err) {
         console.error("Poll error:", err);
         if (mounted) {
