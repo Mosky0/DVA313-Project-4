@@ -323,7 +323,7 @@ export default function ContainerView() {
     fetchProcesses();
 
     // Poll every 5 seconds
-    const intervalId = setInterval(fetchProcesses, 5000);
+    const intervalId = setInterval(fetchProcesses, 10000);
 
     return () => clearInterval(intervalId);
   }, [activeTab, id]);

@@ -294,7 +294,7 @@ const Dashboard = React.memo(() => {
     };
 
     fetchSystemData();
-    const iv = setInterval(fetchSystemData, 5000); 
+    const iv = setInterval(fetchSystemData, 10000); 
 
     return () => {
       mounted = false;
@@ -327,6 +327,11 @@ const Dashboard = React.memo(() => {
             status: (c.status || c.Status || "").toString().toLowerCase(),
           }));
 
+          // Set containers immediately with placeholder stats
+          if (mounted) {
+            setContainers(mapped);
+            setLoadingContainers(false);
+          }
 
           const statsPromises = mapped.map(async (container) => {
             try {
@@ -351,17 +356,18 @@ const Dashboard = React.memo(() => {
             }
           });
 
-
-          const statsResults = await Promise.all(statsPromises);
-
-
-          if (mounted) {
-            const updated = mapped.map((c) => {
-              const stats = statsResults.find((s) => s && s.id === c.id);
-              return stats ? { ...c, ...stats } : c;
-            });
-            setContainers(updated);
-          }
+          // Update with stats asynchronously
+          Promise.all(statsPromises).then((statsResults) => {
+            if (mounted) {
+              const updated = mapped.map((c) => {
+                const stats = statsResults.find((s) => s && s.id === c.id);
+                return stats ? { ...c, ...stats } : c;
+              });
+              setContainers(updated);
+            }
+          }).catch((e) => {
+            console.error("Stats update error:", e);
+          });
         }
       } catch (e) {
         console.error("fetchContainersData error:", e);
@@ -373,7 +379,7 @@ const Dashboard = React.memo(() => {
 
 
     fetchContainersData();
-    const containerInterval = setInterval(fetchContainersData, 5000); 
+    const containerInterval = setInterval(fetchContainersData, 10000); 
     return () => {
       mounted = false;
       clearInterval(containerInterval);
@@ -448,7 +454,7 @@ const Dashboard = React.memo(() => {
 
    checkBackend();
 
-  const interval = setInterval(checkBackend, 5000);
+  const interval = setInterval(checkBackend, 10000);
 
   return () => {
     mounted = false;

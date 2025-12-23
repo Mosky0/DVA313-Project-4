@@ -170,6 +170,44 @@ def list_containers():
         }), 500
 
 
+# ---------------- CONTAINER LIST WITH STATS ----------------
+@metrics_bp.route("/containers/with-stats")
+def list_containers_with_stats():
+    """
+    List all Docker containers with their stats (CPU, memory).
+    Optimized for frontend to avoid N+1 queries.
+    """
+    try:
+        logger.info("Listing all containers with stats")
+        containers = docker_client.containers.list(all=True)
+        result = []
+        for c in containers:
+            c.reload()
+            stats_data = {
+                "id": c.short_id,
+                "name": c.name,
+                "status": c.status,
+                "image": c.image.tags,
+                "cpu": "-",
+                "mem": "-",
+            }
+            if c.status == "running":
+                try:
+                    usage = compute_container_usage(c)
+                    stats_data["cpu"] = f"{usage['cpu_percent']:.2f}%"
+                    stats_data["mem"] = usage["mem_usage"]
+                except Exception as e:
+                    logger.warning(f"Error getting stats for container {c.short_id}: {e}")
+            result.append(stats_data)
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error listing containers with stats: {e}")
+        return jsonify({
+            "error": "Unexpected error occurred",
+            "message": "Failed to list containers with stats",
+        }), 500
+
+
 # ---------------- PER-CONTAINER STATS ----------------
 @metrics_bp.route("/containers/<container_id>/stats")
 def container_stats(container_id):
@@ -317,7 +355,7 @@ def container_processes(container_id):
 
         try:
             result = container.exec_run(
-                cmd="ps auxwwH",
+                cmd="ps aux --sort=-%cpu | head -101",
                 stdout=True,
                 stderr=True
             )

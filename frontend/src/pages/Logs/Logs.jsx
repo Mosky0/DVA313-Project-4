@@ -80,7 +80,7 @@ export default function Logs() {
 
     fetchContainers();
 
-    const interval = setInterval(fetchContainers, 3000);
+    const interval = setInterval(fetchContainers, 10000);
 
     return () => {
       isCancelled = true;
@@ -150,7 +150,7 @@ export default function Logs() {
     fetchLogs();
 
     // poll
-    const interval = setInterval(fetchLogs, 3000);
+    const interval = setInterval(fetchLogs, 10000);
 
     return () => {
       isCancelled = true;
