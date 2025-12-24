@@ -288,7 +288,6 @@ const Dashboard = React.memo(() => {
       } finally {
         if (mounted) {
           setLoadingSys(false);
-          setLoadingEvents(false);
         }
       }
     };
@@ -302,90 +301,36 @@ const Dashboard = React.memo(() => {
     };
   }, []);
 
-
-  // Fetch containers data
   useEffect(() => {
     let mounted = true;
 
-
-    const fetchContainersData = async () => {
+    const fetchAllContainerStats = async () => {
       try {
-        const contRes = await fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" });
+        const res = await fetch(`${API_BASE_URL}/containers/all/stats`, {
+          cache: "no-store",
+        });
 
+        if (!res.ok) throw new Error("Failed to fetch container stats");
 
-        if (contRes.ok) {
-          const contListData = await contRes.json();
-         
-          if (!mounted || !Array.isArray(contListData)) return;
+        const data = await res.json();
+        if (!mounted || !Array.isArray(data)) return;
 
-
-          const mapped = contListData.map((c) => ({
-            id: c.id || c.Id || "",
-            name: c.name || c.Name || c.id || "",
-            cpu_percent: 0,
-            mem_usage: "—",
-            status: (c.status || c.Status || "").toString().toLowerCase(),
-          }));
-
-          // Set containers immediately with placeholder stats
-          if (mounted) {
-            setContainers(mapped);
-            setLoadingContainers(false);
-          }
-
-          const statsPromises = mapped.map(async (container) => {
-            try {
-              const res = await fetch(`${API_BASE_URL}/containers/${container.id}/stats`);
-              const stats = res.ok ? await res.json() : null;
-             
-              if (!stats) return null;
-             
-              const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
-              const cpuValue = rawCpu;
-             
-              const result = {
-                id: container.id,
-                cpu_percent: Number(cpuValue) || 0,
-                mem_usage: stats.mem_usage ?? stats.MemoryUsage ?? stats.memory ?? "—",
-              };
-             
-              return result;
-            } catch (err) {
-              console.error(`Stats fetch error for ${container.id}:`, err);
-              return null;
-            }
-          });
-
-          // Update with stats asynchronously
-          Promise.all(statsPromises).then((statsResults) => {
-            if (mounted) {
-              const updated = mapped.map((c) => {
-                const stats = statsResults.find((s) => s && s.id === c.id);
-                return stats ? { ...c, ...stats } : c;
-              });
-              setContainers(updated);
-            }
-          }).catch((e) => {
-            console.error("Stats update error:", e);
-          });
-        }
-      } catch (e) {
-        console.error("fetchContainersData error:", e);
-      } finally {
+        setContainers(data);
+        setLoadingContainers(false);
+      } catch (err) {
+        console.error("fetchAllContainerStats error:", err);
         if (mounted) setLoadingContainers(false);
-        
       }
     };
 
+    fetchAllContainerStats();
+    const iv = setInterval(fetchAllContainerStats, 3000);
 
-    fetchContainersData();
-    const containerInterval = setInterval(fetchContainersData, 10000); 
     return () => {
       mounted = false;
-      clearInterval(containerInterval);
+      clearInterval(iv);
     };
   }, []);
-
 
   // Fetch events data
   useEffect(() => {

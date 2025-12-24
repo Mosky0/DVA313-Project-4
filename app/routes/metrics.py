@@ -1,11 +1,12 @@
 import datetime
 import time
-from app.util.loggerConfig import IntializeLogger
+from app.utils.loggerConfig import IntializeLogger
 import docker
 from docker.errors import NotFound
 import psutil
 from flask import Blueprint, jsonify
 from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics, addSystemMetrics
+from app.utils.container_cache import container_stats_cache
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
 docker_client = docker.from_env()
@@ -85,6 +86,18 @@ def compute_container_usage(container):
     except Exception as e:
         logger.error(f"Error computing usage for container {container.id}: {e}")
         raise
+
+# ---------------- CONTAINER STATS WITH CACHE ----------------
+@metrics_bp.route("/containers/all/stats")
+def fast_container_stats():
+    try:
+        return jsonify(list(container_stats_cache.values())), 200
+    except Exception as e:
+        logger.error(f"Error retrieving fast container stats: {e}")
+        return jsonify({
+            "error": "Unexpected error occurred",
+            "message": "Failed to retrieve fast container stats",
+        }), 500
 
 
 # ---------------- SYSTEM METRICS ----------------
@@ -168,51 +181,6 @@ def list_containers():
             "error": "Unexpected error occurred",
             "message": "Failed to list containers",
         }), 500
-
-
-# ---------------- CONTAINER LIST WITH STATS ----------------
-@metrics_bp.route("/containers/with-stats")
-def list_containers_with_stats():
-    """
-    List all Docker containers with their stats (CPU, memory).
-    Optimized for frontend to avoid N+1 queries.
-    """
-    try:
-        logger.info("Listing all containers with stats")
-        containers = docker_client.containers.list(all=True)
-        result = []
-        for c in containers:
-            c.reload()
-            stats_data = {
-                "id": c.short_id,
-                "name": c.name,
-                "status": c.status,
-                "image": c.image.tags,
-                "cpu": "-",
-                "mem": "-",
-            }
-            if c.status == "running":
-                try:
-                    latest_stats = getLatestContainerMetrics(c.short_id)
-                    if latest_stats:
-                        stats_data["cpu"] = f"{latest_stats.get('cpu_percent', 0):.2f}%"
-                        stats_data["mem"] = latest_stats.get("mem_usage", "N/A")
-                    else:
-                        stats_data["cpu"] = "N/A"
-                        stats_data["mem"] = "N/A"
-                except Exception as e:
-                    logger.warning(f"Error getting cached stats for container {c.short_id}: {e}")
-                    stats_data["cpu"] = "N/A"
-                    stats_data["mem"] = "N/A"
-            result.append(stats_data)
-        return jsonify(result), 200
-    except Exception as e:
-        logger.error(f"Error listing containers with stats: {e}")
-        return jsonify({
-            "error": "Unexpected error occurred",
-            "message": "Failed to list containers with stats",
-        }), 500
-
 
 # ---------------- PER-CONTAINER STATS ----------------
 @metrics_bp.route("/containers/<container_id>/stats")
