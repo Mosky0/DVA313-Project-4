@@ -773,7 +773,7 @@ useEffect(() => {
       <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
         <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
 
-        <div className="flex-grow overflow-y-auto min-h-[150px] space-y-3">
+        <div className="grow overflow-y-auto min-h-[150px] space-y-3">
           <div className="flex items-center gap-3">
             <input
               type="checkbox"
@@ -838,7 +838,7 @@ useEffect(() => {
               {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
             </div>
           </div>
-          <div className="flex-grow min-h-[100px]">
+          <div className="grow min-h-[100px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={cpuTrendSeries}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -876,7 +876,7 @@ useEffect(() => {
       {/* Memory trend */}
       <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
         {loadingSys || !system ? (
-          <div className="flex items-center justify-center flex-grow text-gray-500">
+          <div className="flex items-center justify-center grow text-gray-500">
             Loading memory trend data...
           </div>
         ) : (
@@ -924,11 +924,11 @@ useEffect(() => {
       <div key="containers-table" className="bg-white rounded-2xl shadow p-4 h-full flex flex-col">
         <div className="text-sm font-medium mb-3">Containers</div>
         {loadingContainers ? (
-          <div className="flex items-center justify-center flex-grow text-gray-500">
+          <div className="flex items-center justify-center grow text-gray-500">
             Loading containers...
           </div>
         ) : (
-          <div className="flex-grow overflow-y-auto">
+          <div className="grow overflow-y-auto">
             <ContainersTable containers={containers} />
           </div>
         )}
