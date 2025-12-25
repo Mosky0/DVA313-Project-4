@@ -477,7 +477,7 @@ def container_processes(container_id):
         return jsonify({"error": "Container not found",
                         "container_id": container_id}), 410
     
-    except docker.errors.Exception as e:
+    except Exception as e:
         return jsonify({"error": "Unexpected error occurred",
                         "message": "Failed to retrieve container processes."}), 500
     
