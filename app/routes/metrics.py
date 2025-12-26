@@ -1,16 +1,16 @@
 import datetime
 import time
-from app.utils.loggerConfig import IntializeLogger
+from app.utils.loggerConfig import InitializeLogger
 import docker
 from docker.errors import NotFound
 import psutil
 from flask import Blueprint, jsonify
 from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics, addSystemMetrics
-from app.utils.container_cache import container_stats_cache
+from app.utils.container_cache import container_stats_cache, container_stats_lock
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
 docker_client = docker.from_env()
-logger = IntializeLogger(__name__)
+logger = InitializeLogger(__name__)
 
 def format_bytes(num: int) -> str:
     """Format bytes into a human-readable string."""
@@ -91,7 +91,9 @@ def compute_container_usage(container):
 @metrics_bp.route("/containers/all/stats")
 def fast_container_stats():
     try:
-        return jsonify(list(container_stats_cache.values())), 200
+        with container_stats_lock:
+            data = list(container_stats_cache.values())
+        return jsonify(data)
     except Exception as e:
         logger.error(f"Error retrieving fast container stats: {e}")
         return jsonify({
