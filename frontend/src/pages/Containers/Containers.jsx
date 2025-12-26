@@ -46,11 +46,11 @@ export default function Containers() {
         setRows(mapped);
         setLoading(false);
         setErrorShown(false);
-        if(prevContainerLength.current !== null && prevContainerLength.current === data.length) {
-          setContainersLoading(false);
+        if (prevContainerLength.current !== null && prevContainerLength.current === data.length) {
+          setContainersLoading(true);
         } 
         else {
-          setContainersLoading(true);
+          setContainersLoading(false);
         }
         prevContainerLength.current = data.length;
       } catch (err) {
@@ -192,7 +192,7 @@ export default function Containers() {
             )}
           </tbody>
         </table>
-        {containersLoading && (
+        {!containersLoading && (
             <div className="flex justify-center items-center py-4">
               <div className="flex items-center gap-2 text-gray-500 text-sm">
                 <svg
