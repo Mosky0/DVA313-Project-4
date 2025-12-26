@@ -1,15 +1,15 @@
 import datetime
 import time
 from app.utils.loggerConfig import InitializeLogger
-import docker
 from docker.errors import NotFound
 import psutil
 from flask import Blueprint, jsonify
 from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics, addSystemMetrics
-from app.utils.container_cache import container_stats_cache, container_stats_lock
+from app.utils.containerCache import container_stats_cache, container_stats_lock
+from app.utils.dockerClient import DockerClientProvider
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
-docker_client = docker.from_env()
+docker_client = DockerClientProvider.get_docker_client()
 logger = InitializeLogger(__name__)
 
 def format_bytes(num: int) -> str:

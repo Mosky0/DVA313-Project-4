@@ -21,6 +21,7 @@ def create_app():
         start_container_stats_collection()
     except Exception as e:
         logger.error(f"Failed to start background services: {e}")
+        raise RuntimeError("Critical background services failed to start.")
 
     from app.routes.main import main_bp
     from app.routes.metrics import metrics_bp
