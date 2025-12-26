@@ -4,13 +4,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.utils.loggerConfig import InitializeLogger
 from app.routes.metrics import compute_container_usage
-from app.utils.container_cache import container_stats_cache, container_stats_lock
+from app.utils.containerCache import container_stats_cache, container_stats_lock
+from app.utils.dockerClient import DockerClientProvider
 
 logger = InitializeLogger(__name__)
 class ContainerStatsCollector:
     def __init__(self, interval=1):
         self.interval = interval 
-        self.docker_client = docker.from_env()
+        self.docker_client = DockerClientProvider.get_docker_client()
         self.running = False
         self.thread = None
 
