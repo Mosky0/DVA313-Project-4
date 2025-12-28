@@ -7,6 +7,8 @@ from flask import Blueprint, jsonify
 from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics, addSystemMetrics
 from app.utils.containerCache import container_stats_cache, container_stats_lock
 from app.utils.dockerClient import DockerClientProvider
+import docker
+from docker.errors import NotFound, APIError
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
 docker_client = DockerClientProvider.get_docker_client()

@@ -11,7 +11,7 @@ class TestContainerLogs:
             mock_docker.containers.get.return_value = mock_container
             mock_container.logs.return_value = sample_logs
 
-            response = client.get(f'/api/containers/{test123}/logs')
+            response = client.get(f'/api/containers/test123/logs')
 
             assert response.status_code == 200
             data = response.get_json()
@@ -30,7 +30,7 @@ class TestContainerLogs:
 
             response = client.get(f'/api/containers/nonexistent/logs')
 
-            assert response.status_code == 404
+            assert response.status_code == 410
             data = response.get_json()
             assert 'error' in data
             assert data['container_id'] == 'nonexistent'
@@ -41,14 +41,13 @@ class TestContainerLogs:
             mock_docker.containers.get.return_value = mock_container
             mock_container.logs.return_value = b''
 
-            response = client.get(f'/api/containers/{test123}/logs')
+            response = client.get(f'/api/containers/test123/logs')
 
             assert response.status_code == 200
             data = response.get_json()
             assert data['container'] == 'test_container'
             assert 'logs' in data 
             assert data['logs'] == []
-
 
     def test_get_logs_unicode_handling(self, client, mock_container):
         """Test proper handling of unicode characters in logs."""

@@ -13,7 +13,7 @@ class TestContainerProcesses:
             exec_result = MagicMock()
             exec_result.exit_code = 0
             exec_result.output = sample_ps_output
-            mock_container.top.return_value = exec_result
+            mock_container.exec_run.return_value = exec_result
             
             response = client.get(f'/api/containers/test123/processes')
 
