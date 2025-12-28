@@ -3,8 +3,9 @@ from unittest.mock import MagicMock, patch
 from docker.errors import NotFound, APIError
 
 class TestContainerProcesses:
-    """Test for /api/containers/<id>/processes endpoint."""
+    """Test for /api/containers/<id>/processes endpoint"""
     
+    """CRITICAL TEST"""
     def test_get_processes_success(self, client, mock_container, sample_ps_output):
         """Test successful retrieval of container processes."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
@@ -33,7 +34,7 @@ class TestContainerProcesses:
             assert 'state' in proc
             assert 'command' in proc
 
-
+    """CRITICAL TEST"""
     def test_get_processes_fallback_to_docker_top(self, client, mock_container, sample_processes):
         """Test fallback to docker top when exec_run fails."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
@@ -55,7 +56,7 @@ class TestContainerProcesses:
             assert len(data['processes']) == 3
             mock_container.top.assert_called_once()
     
-
+    """CRITICAL TEST"""
     def test_get_processes_container_not_running(self, client, mock_container_stopped):
         """Test retrieval of processes when container is not running."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
@@ -68,7 +69,8 @@ class TestContainerProcesses:
             
             assert data['status'] == 'exited'
             assert data['processes'] == []
-
+   
+    """CRITICAL TEST"""
     def test_get_processes_container_not_found(self, client):
         """Test process retrieval when container doesn't exist."""
         with patch("app.routes.metrics.docker_client") as mock_docker:

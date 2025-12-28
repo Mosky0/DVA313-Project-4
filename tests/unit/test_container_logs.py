@@ -3,8 +3,8 @@ from unittest.mock import patch, MagicMock
 from docker.errors import NotFound, APIError
 
 class TestContainerLogs:
-    """Test for /api/containers/<id>/logs endpoint."""
-
+    """Test for /api/containers/<id>/logs endpoint"""
+    """CRITICAL TEST"""
     def test_get_logs_success(self, client, mock_container, sample_logs):
         """Test successful retrieval of container logs."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
@@ -23,6 +23,7 @@ class TestContainerLogs:
             mock_docker.containers.get.assert_called_once_with('test123')
             mock_container.logs.assert_called_once_with(tail=50)
 
+    """CRITICAL TEST"""
     def test_get_logs_not_found(self, client):
         """Test retrieval of logs for a non-existent container."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
@@ -35,6 +36,7 @@ class TestContainerLogs:
             assert 'error' in data
             assert data['container_id'] == 'nonexistent'
 
+    """CRITICAL TEST"""
     def test_get_logs_empty_logs(self, client, mock_container):
         """Test retrieval of logs when container has no logs."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
@@ -64,7 +66,7 @@ class TestContainerLogs:
             assert '世界' in data['logs'][0]
             assert '🚀' in data['logs'][1]
     
-    
+    """in case of corrupted data"""
     def test_get_logs_invalid_utf8(self, client, mock_container):
         """Test handling of invalid UTF-8 sequences."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
@@ -79,7 +81,7 @@ class TestContainerLogs:
             data = response.get_json()
             assert len(data['logs']) == 3
     
-    
+    """CRITICAL TEST"""
     def test_get_logs_docker_api_error(self, client, mock_container):
         """Test handling of Docker API errors."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
