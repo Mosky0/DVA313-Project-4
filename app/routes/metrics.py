@@ -1,15 +1,16 @@
 import datetime
 import time
-from app.util.loggerConfig import IntializeLogger
-import docker
+from app.utils.loggerConfig import InitializeLogger
 from docker.errors import NotFound
 import psutil
 from flask import Blueprint, jsonify
 from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics, addSystemMetrics
+from app.utils.containerCache import container_stats_cache, container_stats_lock
+from app.utils.dockerClient import DockerClientProvider
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
-docker_client = docker.from_env()
-logger = IntializeLogger(__name__)
+docker_client = DockerClientProvider.get_docker_client()
+logger = InitializeLogger(__name__)
 
 def format_bytes(num: int) -> str:
     """Format bytes into a human-readable string."""
@@ -85,6 +86,20 @@ def compute_container_usage(container):
     except Exception as e:
         logger.error(f"Error computing usage for container {container.id}: {e}")
         raise
+
+# ---------------- CONTAINER STATS WITH CACHE ----------------
+@metrics_bp.route("/containers/all/stats")
+def fast_container_stats():
+    try:
+        with container_stats_lock:
+            data = list(container_stats_cache.values())
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Error retrieving fast container stats: {e}")
+        return jsonify({
+            "error": "Unexpected error occurred",
+            "message": "Failed to retrieve fast container stats",
+        }), 500
 
 
 # ---------------- SYSTEM METRICS ----------------
@@ -168,7 +183,6 @@ def list_containers():
             "error": "Unexpected error occurred",
             "message": "Failed to list containers",
         }), 500
-
 
 # ---------------- PER-CONTAINER STATS ----------------
 @metrics_bp.route("/containers/<container_id>/stats")
@@ -317,7 +331,7 @@ def container_processes(container_id):
 
         try:
             result = container.exec_run(
-                cmd="ps auxwwH",
+                cmd="ps aux --sort=-%cpu | head -101",
                 stdout=True,
                 stderr=True
             )
@@ -416,6 +430,9 @@ def container_processes(container_id):
                     continue
 
         processes.sort(key=lambda p: p["cpu_percent"], reverse=True)
+
+        # Limit to top 100 processes to prevent memory issues
+        processes = processes[:100]
 
         return jsonify({
             "container": container.name,
