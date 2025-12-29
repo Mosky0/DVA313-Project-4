@@ -50,6 +50,23 @@ class TestContainerLogs:
             assert data['container'] == 'test_container'
             assert 'logs' in data 
             assert data['logs'] == []
+            
+    """CRITICAL TEST"""
+    def test_get_logs_docker_api_error(self, client, mock_container):
+        """Test handling of Docker API errors."""
+        with patch("app.routes.metrics.docker_client") as mock_docker:
+            mock_docker.containers.get.return_value = mock_container
+            mock_container.logs.side_effect = APIError("Docker daemon error")
+            
+            response = client.get('/api/containers/test123/logs')
+            
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+    
+    
+
+
 
     def test_get_logs_unicode_handling(self, client, mock_container):
         """Test proper handling of unicode characters in logs."""
@@ -81,20 +98,7 @@ class TestContainerLogs:
             data = response.get_json()
             assert len(data['logs']) == 3
     
-    """CRITICAL TEST"""
-    def test_get_logs_docker_api_error(self, client, mock_container):
-        """Test handling of Docker API errors."""
-        with patch("app.routes.metrics.docker_client") as mock_docker:
-            mock_docker.containers.get.return_value = mock_container
-            mock_container.logs.side_effect = APIError("Docker daemon error")
-            
-            response = client.get('/api/containers/test123/logs')
-            
-            assert response.status_code == 500
-            data = response.get_json()
-            assert 'error' in data
-    
-    
+
     def test_get_logs_timestamp_format(self, client, mock_container, sample_logs):
         """Test that logs include ISO format timestamps."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
