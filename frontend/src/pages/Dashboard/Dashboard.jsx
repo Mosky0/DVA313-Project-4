@@ -36,19 +36,24 @@ const Dashboard = React.memo(() => {
     
     .react-grid-item > .react-resizable-handle {
       position: absolute;
-      width: 20px;
-      height: 20px;
-      bottom: 0;
-      right: 0;
-      background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgOCA4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxwYXRoIGQ9Ik04IDBWOFY4Wk0wIDhIOFY4VjBaIiBmaWxsPSIjQ0NDOUNBIj48L3BhdGg+CiAgPHBhdGggZD0iTTcgMVY3SDFWN1YxWiIgc3Ryb2tlPSIjQ0NDOUNBIiBzdHJva2Utd2lkdGg9IjAuNSI+PC9wYXRoPgo8L3N2Zz4K') no-repeat;
-      background-position: bottom right;
-      padding: 0 3px 3px 0;
-      background-repeat: no-repeat;
-      background-origin: content-box;
-      box-sizing: border-box;
+      width: 16px;
+      height: 16px;
+      bottom: 2px;
+      right: 2px;
       cursor: se-resize;
+      background-repeat: no-repeat;
+      background-position: bottom right;
+      box-sizing: border-box;
+
+      background-image: url("data:image/svg+xml;utf8,\
+    <svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'>\
+      <line x1='2' y1='10' x2='10' y2='2' stroke='%239CA3AF' stroke-width='1'/>\
+      <line x1='5' y1='10' x2='10' y2='5' stroke='%239CA3AF' stroke-width='1'/>\
+      <line x1='8' y1='10' x2='10' y2='8' stroke='%239CA3AF' stroke-width='1'/>\
+    </svg>");
     }
-    
+
+        
     .react-grid-item.resizing {
       border: none !important;
       box-shadow: none !important;
@@ -89,26 +94,37 @@ const Dashboard = React.memo(() => {
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
   const [systemCpuHistory, setSystemCpuHistory] = useState([]);
   const [backendStatus, setBackendStatus] = useState("connected");
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(true);
   const [layout, setLayout] = useState([]);
   const [width, setWidth] = useState(window.innerWidth - 100);
+  const [componentStates, setComponentStates] = useState({
+    'load-card': 'minimized',
+    'cpu-card': 'minimized',
+    'memory-card': 'minimized',
+    'uptime-card': 'minimized',
+    'cpu-activity-chart': 'maximized',
+    'cpu-trend-chart': 'maximized',
+    'memory-trend-chart': 'maximized',
+    'alerts-panel': 'minimized',
+    'containers-table': 'maximized'
+  });
 
   const wasDisconnected = useRef(false);
 
   // Define default layout
   const defaultLayout = [
-    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
-    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
-    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
-    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false, "static": true },
+    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false },
+    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false },
+    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false },
+    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false },
     
-    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 2, "moved": false, "static": true },
-    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 2, "moved": false },
+    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 2, "moved": false },
     
-    { "i": "memory-trend-chart", "x": 0, "y": 3, "w": 4, "h": 2, "moved": false, "static": true },
-    { "i": "alerts-panel", "x": 4, "y": 3, "w": 4, "h": 2, "moved": false, "static": true },
+    { "i": "memory-trend-chart", "x": 0, "y": 3, "w": 4, "h": 2, "moved": false },
+    { "i": "alerts-panel", "x": 4, "y": 3, "w": 4, "h": 2, "moved": false },
     
-    { "i": "containers-table", "x": 0, "y": 4, "w": 8, "h": 3, "moved": false, "static": true }
+    { "i": "containers-table", "x": 0, "y": 4.5, "w": 8, "h": 4, "moved": false }
   ];
 
   useEffect(() => {
@@ -124,7 +140,11 @@ const Dashboard = React.memo(() => {
           localStorage.removeItem('dashboard_layout_v4');
           setLayout(defaultLayout);
         } else {
-          setLayout(parsedLayout);
+          const layoutWithoutStatic = parsedLayout.map(item => {
+            const { static: itemStatic, ...rest } = item;
+            return rest;
+          });
+          setLayout(layoutWithoutStatic);
         }
       } catch (e) {
         localStorage.removeItem('dashboard_layout_v4');
@@ -139,6 +159,39 @@ const Dashboard = React.memo(() => {
 
 
   useEffect(() => {
+    if (layout.length > 0) {
+      setComponentStates(prevStates => {
+        const newComponentStates = { ...prevStates }; 
+        
+        layout.forEach(item => {
+          switch (item.i) {
+            case 'load-card':
+            case 'cpu-card':
+            case 'memory-card':
+            case 'uptime-card':
+              newComponentStates[item.i] = (item.w === 1 && item.h === 1) ? 'minimized' : 'maximized';
+              break;
+            case 'cpu-activity-chart':
+            case 'cpu-trend-chart':
+              newComponentStates[item.i] = (item.w === 4 && item.h === 2) ? 'minimized' : 'maximized';
+              break;
+            case 'memory-trend-chart':
+              newComponentStates[item.i] = (item.w === 4 && item.h === 2) ? 'minimized' : 'maximized';
+              break;
+            case 'alerts-panel':
+              newComponentStates[item.i] = (item.w === 2 && item.h === 2) ? 'minimized' : 'maximized';
+              break;
+            case 'containers-table':
+              newComponentStates[item.i] = (item.h === 3) ? 'minimized' : 'maximized';
+              break;
+            default:
+              newComponentStates[item.i] = 'maximized';
+          }
+        });
+        
+        return newComponentStates;
+      });
+    }
   }, [layout]);
 
   const onLayoutChange = (newLayout) => {
@@ -154,20 +207,146 @@ const Dashboard = React.memo(() => {
     
     if (isValidLayout && !isStackedLayout) {
       setLayout(newLayout);
-    } else if (isEditMode) {
+      const layoutToSave = newLayout.map(item => ({ ...item, static: true }));
+      localStorage.setItem('dashboard_layout_v4', JSON.stringify(layoutToSave));
+    } else if (isEditMode && isStackedLayout) {
       setTimeout(() => {
         setLayout(defaultLayout);
+        const layoutToSave = defaultLayout.map(item => ({ ...item, static: true }));
+        localStorage.setItem('dashboard_layout_v4', JSON.stringify(layoutToSave));
       }, 50);
-    } else {
-      setLayout(newLayout);
     }
   };
 
+  const getButtonIcon = (componentId) => {
+    const currentState = componentStates[componentId];
+    const isMinimized = currentState === 'minimized';
+    
+    if (isMinimized) {
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="15 3 21 3 21 9" />
+          <polyline points="9 21 3 21 3 15" />
+          <line x1="21" y1="3" x2="14" y2="10" />
+          <line x1="3" y1="21" x2="10" y2="14" />
+      </svg>
 
+      );
+    } else {
+      return (
+      <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-4 w-4 rotate-90"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      >
+      <polyline points="21 15 15 15 15 21" />
+      <polyline points="3 9 9 9 9 3" />
+      <line x1="15" y1="15" x2="21" y2="21" />
+      <line x1="9" y1="9" x2="3" y2="3" />
+    </svg>
+      );
+    }
+  };
+
+  const toggleComponentState = (componentId) => {
+    const currentItem = layout.find(item => item.i === componentId);
+    
+    if (!currentItem) {
+      console.warn(`Component ${componentId} not found in layout`);
+      return;
+    }
+    
+    const currentState = componentStates[componentId];
+    const newState = currentState === 'minimized' ? 'maximized' : 'minimized';
+    
+    setComponentStates(prev => ({
+      ...prev,
+      [componentId]: newState
+    }));
+    
+    const updatedLayout = layout.map(item => {
+      if (item.i === componentId) {
+        let updatedItem;
+        switch (componentId) {
+          case 'load-card':
+          case 'cpu-card':
+          case 'memory-card':
+          case 'uptime-card':
+            updatedItem = {
+              ...item,
+              w: newState === 'minimized' ? 1 : 2,
+              h: 1
+            };
+            break;
+          case 'cpu-activity-chart':
+          case 'cpu-trend-chart':
+            updatedItem = {
+              ...item,
+              w: 4,
+              h: newState === 'minimized' ? 2 : 4
+            };
+            break;
+          case 'memory-trend-chart':
+            updatedItem = {
+              ...item,
+              w: newState === 'minimized' ? 4 : 8,
+              h: 2
+            };
+            break;
+          case 'alerts-panel':
+            updatedItem = {
+              ...item,
+              w: newState === 'minimized' ? 2 : 4,
+              h: 2
+            };
+            break;
+          case 'containers-table':
+            updatedItem = {
+              ...item,
+              h: newState === 'minimized' ? 3 : 6
+            };
+            break;
+          default:
+            updatedItem = item;
+        }
+        
+        updatedItem.w = Math.max(1, updatedItem.w);
+        updatedItem.h = Math.max(1, updatedItem.h);
+        
+        updatedItem.x = Math.max(0, Math.min(updatedItem.x, 7)); // Max x position for 8 columns grid
+        updatedItem.y = Math.max(0, updatedItem.y);
+        
+        if (updatedItem.x + updatedItem.w > 8) {
+          updatedItem.x = Math.max(0, 8 - updatedItem.w);
+        }
+        
+        return updatedItem;
+      }
+      return item;
+    });
+    
+    setLayout(updatedLayout);
+  };
 
   const resetToDefaultLayout = () => {
     setTimeout(() => {
       setLayout(defaultLayout);
+      const layoutToSave = defaultLayout.map(item => ({ ...item, static: true }));
+      localStorage.setItem('dashboard_layout_v4', JSON.stringify(layoutToSave));
     }, 50);
   };
 
@@ -186,11 +365,10 @@ const Dashboard = React.memo(() => {
 
     const fetchSystemData = async () => {
       try {
-        const [sysRes, historyRes, latestSysRes, contRes, evRes] = await Promise.all([
+        const [sysRes, historyRes, latestSysRes] = await Promise.all([
           fetch(`${API_BASE_URL}/system`),
           fetch(`${API_BASE_URL}/system/metrics/history`),
-          fetch(`${API_BASE_URL}/system/metrics/latest`),
-          fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" })
+          fetch(`${API_BASE_URL}/system/metrics/latest`)
         ]);
 
 
@@ -224,77 +402,18 @@ const Dashboard = React.memo(() => {
           }
         }
 
-        if (contRes.ok) {
-          const contListData = await contRes.json();
-          
-          if (!mounted || !Array.isArray(contListData)) return;
-
-          const mapped = contListData.map((c) => ({
-            id: c.id || c.Id || "",
-            name: c.name || c.Name || c.id || "",
-            cpu_percent: 0,
-            mem_usage: "—",
-            status: (c.status || c.Status || "").toString().toLowerCase(),
-          }));
-
-          const statsPromises = mapped.map(async (container) => {
-            try {
-              const res = await fetch(`${API_BASE_URL}/containers/${container.id}/stats`);
-              const stats = res.ok ? await res.json() : null;
-              
-              if (!stats) return null;
-              
-              const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
-              const cpuValue = rawCpu < 10 ? rawCpu * 100 : rawCpu;
-              
-              const result = {
-                id: container.id,
-                cpu_percent: Number(cpuValue) || 0,
-                mem_usage: stats.mem_usage ?? stats.MemoryUsage ?? stats.memory ?? "—",
-              };
-              
-              return result;
-            } catch (err) {
-              console.error(`Stats fetch error for ${container.id}:`, err);
-              return null;
-            }
-          });
-
-          const statsResults = await Promise.all(statsPromises);
-
-          if (mounted) {
-            const updated = mapped.map((c) => {
-              const stats = statsResults.find((s) => s && s.id === c.id);
-              return stats ? { ...c, ...stats } : c;
-            });
-            setContainers(updated);
-
-          }
-        }
-        if (evRes.ok) {
-          const evData = await evRes.json();
-          if (mounted) {
-            setEvents(Array.isArray(evData) ? evData : []);
-          }
-        } else {
-          if (mounted) {
-            setEvents([]);
-          }
-        }
-
       } catch (e) {
       console.error("fetchSystemData error:", e);
       
       } finally {
         if (mounted) {
           setLoadingSys(false);
-          setLoadingEvents(false);
         }
       }
     };
 
     fetchSystemData();
-    const iv = setInterval(fetchSystemData, 5000); 
+    const iv = setInterval(fetchSystemData, 10000); 
 
     return () => {
       mounted = false;
@@ -302,111 +421,35 @@ const Dashboard = React.memo(() => {
     };
   }, []);
 
-
-  // Fetch containers data
   useEffect(() => {
     let mounted = true;
 
-
-    const fetchContainersData = async () => {
+    const fetchAllContainerStats = async () => {
       try {
-        const contRes = await fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" });
+        const res = await fetch(`${API_BASE_URL}/containers/all/stats`, {
+          cache: "no-store",
+        });
 
+        if (!res.ok) throw new Error("Failed to fetch container stats");
 
-        if (contRes.ok) {
-          const contListData = await contRes.json();
-         
-          if (!mounted || !Array.isArray(contListData)) return;
+        const data = await res.json();
+        if (!mounted || !Array.isArray(data)) return;
 
-
-          const mapped = contListData.map((c) => ({
-            id: c.id || c.Id || "",
-            name: c.name || c.Name || c.id || "",
-            cpu_percent: 0,
-            mem_usage: "—",
-            status: (c.status || c.Status || "").toString().toLowerCase(),
-          }));
-
-
-          const statsPromises = mapped.map(async (container) => {
-            try {
-              const res = await fetch(`${API_BASE_URL}/containers/${container.id}/stats`);
-              const stats = res.ok ? await res.json() : null;
-             
-              if (!stats) return null;
-             
-              const rawCpu = Number(stats.cpu_percent ?? stats.CPUPercent ?? stats.cpu ?? 0);
-              const cpuValue = rawCpu;
-             
-              const result = {
-                id: container.id,
-                cpu_percent: Number(cpuValue) || 0,
-                mem_usage: stats.mem_usage ?? stats.MemoryUsage ?? stats.memory ?? "—",
-              };
-             
-              return result;
-            } catch (err) {
-              console.error(`Stats fetch error for ${container.id}:`, err);
-              return null;
-            }
-          });
-
-
-          const statsResults = await Promise.all(statsPromises);
-
-
-          if (mounted) {
-            const updated = mapped.map((c) => {
-              const stats = statsResults.find((s) => s && s.id === c.id);
-              return stats ? { ...c, ...stats } : c;
-            });
-            setContainers(updated);
-          }
-        }
-      } catch (e) {
-        console.error("fetchContainersData error:", e);
-      } finally {
+        setContainers(data);
+        setLoadingContainers(false);
+      } catch (err) {
+        console.error("fetchAllContainerStats error:", err);
         if (mounted) setLoadingContainers(false);
-        
       }
     };
 
+    fetchAllContainerStats();
+    const iv = setInterval(fetchAllContainerStats, 3000);
 
-    fetchContainersData();
-    const containerInterval = setInterval(fetchContainersData, 5000); 
     return () => {
       mounted = false;
-      clearInterval(containerInterval);
+      clearInterval(iv);
     };
-  }, []);
-
-
-  // Fetch events data
-  useEffect(() => {
-    let mounted = true;
-
-
-    const fetchEventsData = async () => {
-      try {
-        const evRes = await fetch(`${API_BASE_URL}/events?_=${Date.now()}`, { cache: "no-store" });
-
-
-        if (evRes.ok) {
-          const evData = await evRes.json();
-          if (mounted) setEvents(Array.isArray(evData) ? evData : []);
-        } else {
-          if (mounted) setEvents([]);
-        }
-      } catch (e) {
-        console.error("fetchEventsData error:", e);
-      } finally {
-        if (mounted) setLoadingEvents(false);
-      }
-    };
-
-
-    fetchEventsData();
-    
   }, []);
 
   useEffect(() => {
@@ -448,7 +491,7 @@ const Dashboard = React.memo(() => {
 
    checkBackend();
 
-  const interval = setInterval(checkBackend, 5000);
+  const interval = setInterval(checkBackend, 10000);
 
   return () => {
     mounted = false;
@@ -645,60 +688,19 @@ useEffect(() => {
   </div>
 )}
 
-      {/* Edit Controls */}
-      <div className="flex justify-end mb-4 gap-2">
-        {!isEditMode ? (
-          <button 
-            onClick={() => setIsEditMode(true)}
-            className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-          >
-            Edit Layout
-          </button>
-        ) : (
-          <>
-            <button 
-              onClick={resetToDefaultLayout}
-              className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-            >
-              Reset
-            </button>
-            <button 
-              onClick={() => {
-                const layoutToSave = layout.map(item => ({ ...item, static: true }));
-                localStorage.setItem('dashboard_layout_v4', JSON.stringify(layoutToSave));
-                setIsEditMode(false);
-              }}
-              className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-            >
-              Save
-            </button>
-            <button 
-              onClick={() => {
-                const savedLayoutV4 = localStorage.getItem('dashboard_layout_v4');
-                if (savedLayoutV4) {
-                  try {
-                    const parsedLayout = JSON.parse(savedLayoutV4);
-                    setLayout(parsedLayout);
-                  } catch (e) {
-                    setLayout(defaultLayout);
-                  }
-                } else {
-                  setLayout(defaultLayout);
-                }
-                setIsEditMode(false);
-              }}
-              className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-            >
-              Cancel
-            </button>
-          </>
-        )}
+      <div className="flex justify-start mb-4">
+        <button 
+          onClick={resetToDefaultLayout}
+          className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+        >
+          Reset Layout
+        </button>
       </div>
 
       {/* Grid Layout */}
       <GridLayout
         className="layout"
-        layout={layout.map(item => ({ ...item, static: !isEditMode }))}
+        layout={layout.map(item => ({ ...item, static: false }))}
         cols={8}
         rowHeight={40}
         width={width}
@@ -709,63 +711,112 @@ useEffect(() => {
         containerPadding={[15, 15]}
       >
         {/* TOP CARDS */}
-        <div key="load-card" className="bg-white rounded-xl p-4 shadow">
-          <div className="text-xs text-gray-500">Load (1/5/15)</div>
-          {loadingSys || !system ? (
-            <div className="text-lg font-semibold text-gray-400">Loading...</div>
-          ) : (
-            <div className="text-lg font-semibold">
-              {system?.load?.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
-            </div>
-          )}
-          {loadingSys || !system ? (
-            <div className="text-xs text-gray-400 mt-1">Processes: — • Running: —</div>
-          ) : (
-            <div className="text-xs text-gray-400 mt-1">
-              Processes: {system.total_processes} • Running: {system.running}
-            </div>
-          )}
+        <div key="load-card" className="bg-white rounded-xl p-4 shadow flex flex-col h-full">
+          <div className="flex justify-between items-start">
+            <div className="text-xs text-gray-500">Load (1/5/15)</div>
+            <button 
+              onClick={() => toggleComponentState('load-card')}
+              className="text-xs text-gray-500 hover:text-gray-700 z-10"
+            >
+              {getButtonIcon('load-card')}
+            </button>
+          </div>
+          <div className="flex-grow flex flex-col justify-center min-h-[40px]">
+            {loadingSys || !system ? (
+              <div className="text-lg font-semibold text-gray-400">Loading...</div>
+            ) : (
+              <div className="text-lg font-semibold">
+                {system?.load?.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" / ")}
+              </div>
+            )}
+            {loadingSys || !system ? (
+              <div className="text-xs text-gray-400 mt-1">Processes: — • Running: —</div>
+            ) : (
+              <div className="text-xs text-gray-400 mt-1">
+                Processes: {system.total_processes} • Running: {system.running}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div key="cpu-card" className="bg-white rounded-xl p-4 shadow flex items-center">
-          {loadingSys || !system ? (
-            <CircleMetric value={0} label="System CPU" />
-          ) : (
-            <CircleMetric value={Math.round(system?.cpu?.total_percent || 0)} label="System CPU" />
-          )}
+        <div key="cpu-card" className="bg-white rounded-xl p-4 shadow flex flex-col">
+          <div className="flex justify-between items-start mb-2">
+            <div className="text-xs text-gray-500">System CPU</div>
+            <button 
+              onClick={() => toggleComponentState('cpu-card')}
+              className="text-xs text-gray-500 hover:text-gray-700 z-10"
+            >
+              {getButtonIcon('cpu-card')}
+            </button>
+          </div>
+          <div className="flex-grow flex items-center justify-center min-h-[40px]">
+            {loadingSys || !system ? (
+              <CircleMetric value={0} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
+            ) : (
+              <CircleMetric value={Math.round(system?.cpu?.total_percent || 0)} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
+            )}
+          </div>
         </div>
 
-        <div key="memory-card" className="bg-white rounded-xl p-4 shadow">
-          <div className="text-xs text-gray-500">Memory</div>
-          {loadingSys || !system ? (
-            <div className="mt-2 text-sm font-semibold text-gray-400">—</div>
-          ) : (
-            <div className="mt-2 text-sm font-semibold">{memPct}%</div>
-          )}
-          <div className="mt-3">
-            <div className="bg-gray-200 h-2 rounded overflow-hidden">
-              <div 
-                className="h-2 bg-[#2496ED]" 
-                style={{ width: `${loadingSys || !system ? 0 : memPct}%` }} 
-              />
+        <div key="memory-card" className="bg-white rounded-xl p-4 shadow flex flex-col h-full">
+          <div className="flex justify-between items-start">
+            <div className="text-xs text-gray-500">Memory</div>
+            <button 
+              onClick={() => toggleComponentState('memory-card')}
+              className="text-xs text-gray-500 hover:text-gray-700 z-10"  
+            >
+              {getButtonIcon('memory-card')}
+            </button>
+          </div>
+          <div className="flex-grow flex flex-col justify-center min-h-[40px]">
+            {loadingSys || !system ? (
+              <div className="mt-2 text-sm font-semibold text-gray-400">—</div>
+            ) : (
+              <div className="mt-2 text-sm font-semibold">{memPct}%</div>
+            )}
+            <div className="mt-3">
+              <div className="bg-gray-200 h-2 rounded overflow-hidden">
+                <div 
+                  className="h-2 bg-[#2496ED]" 
+                  style={{ width: `${loadingSys || !system ? 0 : memPct}%` }} 
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        <div key="uptime-card" className="bg-white rounded-xl p-4 shadow">
-          <div className="text-xs text-gray-500">Uptime</div>
-          {loadingSys || !system ? (
-            <div className="mt-2 text-lg font-semibold text-gray-400">Loading...</div>
-          ) : (
-            <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
-          )}
-          <div className="text-xs text-gray-400 mt-1">Host</div>
+        <div key="uptime-card" className="bg-white rounded-xl p-4 shadow flex flex-col h-full">
+          <div className="flex justify-between items-start">
+            <div className="text-xs text-gray-500">Uptime</div>
+            <button 
+              onClick={() => toggleComponentState('uptime-card')}
+              className="text-xs text-gray-500 hover:text-gray-700 z-10"
+            >
+              {getButtonIcon('uptime-card')}
+            </button>
+          </div>
+          <div className="flex-grow flex flex-col justify-center min-h-[40px]">
+            {loadingSys || !system ? (
+              <div className="mt-2 text-lg font-semibold text-gray-400">Loading...</div>
+            ) : (
+              <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
+            )}
+            <div className="text-xs text-gray-400 mt-1">Host</div>
+          </div>
         </div>
 
 
       {/* CPU ACTIVITY (PER CORE) */}
       <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
-        <div className="text-sm font-medium mb-3">CPU Activity (per core)</div>
+        <div className="flex justify-between items-start mb-3">
+          <div className="text-sm font-medium">CPU Activity (per core)</div>
+          <button 
+            onClick={() => toggleComponentState('cpu-activity-chart')}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            {getButtonIcon('cpu-activity-chart')}
+          </button>
+        </div>
 
         <div className="flex-grow overflow-y-auto min-h-[150px] space-y-3">
           <div className="flex items-center gap-3">
@@ -828,8 +879,16 @@ useEffect(() => {
 
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium">CPU trend (selected cores)</div>
-            <div className="text-xs text-gray-500">
-              {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-gray-500">
+                {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
+              </div>
+              <button 
+                onClick={() => toggleComponentState('cpu-trend-chart')}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                {getButtonIcon('cpu-trend-chart')}
+              </button>
             </div>
           </div>
           <div className="flex-grow min-h-[100px]">
@@ -869,6 +928,15 @@ useEffect(() => {
 
       {/* Memory trend */}
       <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
+        <div className="flex justify-between items-start mb-2">
+          <div className="text-sm font-medium">System Memory trend</div>
+          <button 
+            onClick={() => toggleComponentState('memory-trend-chart')}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            {getButtonIcon('memory-trend-chart')}
+          </button>
+        </div>
         {loadingSys || !system ? (
           <div className="flex items-center justify-center flex-grow text-gray-500">
             Loading memory trend data...
@@ -878,19 +946,23 @@ useEffect(() => {
             title="System Memory trend"
             data={memoryTrendSeries}
             type="area"
+            showTitle={false}
           />
         )}
       </div>
 
       {/* Alerts panel */}
-      <div
-  key="alerts-panel"
-  className="bg-white rounded-2xl shadow p-4 flex flex-col h-full overflow-hidden"
->
-  <div className="text-sm font-medium mb-3">
-    Alerts & Recent Events
-  </div>
-        <div className="space-y-2 text-sm text-gray-700 h-80 overflow-y-auto">
+      <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
+        <div className="flex justify-between items-start mb-3">
+          <div className="text-sm font-medium">Alerts & Recent Events</div>
+          <button 
+            onClick={() => toggleComponentState('alerts-panel')}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            {getButtonIcon('alerts-panel')}
+          </button>
+        </div>
+        <div className="flex-grow overflow-y-auto min-h-[50px] space-y-2 text-sm text-gray-700">
           {loadingSys || !system ? (
             <div className="text-xs text-gray-400">Loading alerts...</div>
           ) : derivedAlerts.length === 0 ? (
@@ -921,7 +993,15 @@ useEffect(() => {
 
       {/* Containers table */}
       <div key="containers-table" className="bg-white rounded-2xl shadow p-4 h-full flex flex-col">
-        <div className="text-sm font-medium mb-3">Containers</div>
+        <div className="flex justify-between items-start mb-3">
+          <div className="text-sm font-medium">Containers</div>
+          <button 
+            onClick={() => toggleComponentState('containers-table')}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            {getButtonIcon('containers-table')}
+          </button>
+        </div>
         {loadingContainers ? (
           <div className="flex items-center justify-center flex-grow text-gray-500">
             Loading containers...
