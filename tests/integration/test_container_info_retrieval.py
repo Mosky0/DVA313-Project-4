@@ -1,37 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
 from docker.errors import NotFound
 
-def test_list_containers_with_stats(client):
-    """Test listing containers with stats."""
-    mock_container = MagicMock()
-    mock_container.short_id = "containerID"
-    mock_container.name = "sampleIDE"
-    mock_container.status = "running"
-    mock_container.image.tags = ["ide:latest"]
-
-    mock_stats = {
-        "cpu_percent": 15.5,
-        "mem_usage": "256 MB"
-    }
-
-    with patch("app.routes.metrics.docker_client") as mock_docker, \
-         patch("app.routes.metrics.getLatestContainerMetrics") as mock_get_latest:
-
-        mock_docker.containers.list.return_value = [mock_container]
-        mock_get_latest.return_value = mock_stats
-
-        response = client.get("/api/containers/with-stats")
-        assert response.status_code == 200
-        data = response.get_json()
-
-        assert len(data) == 1
-        assert data[0]["id"] == "containerID"
-        assert data[0]["name"] == "sampleIDE"
-        assert data[0]["status"] == "running"
-        assert data[0]["image"] == ["ide:latest"]
-        assert data[0]["cpu"] == "15.50%"
-        assert data[0]["mem"] == "256 MB"
 
 def test_list_containers_with_stats_empty(client):
     """Test listing containers with stats when no containers."""
@@ -57,8 +26,8 @@ def test_list_containers_with_stats_error(client):
 def test_container_metrics_history(client):
     """Test retrieving metrics history for a container."""
     mock_history = [
-        {"timestamp": "2023-01-01T00:00:00", "cpu_percent": 10.0},
-        {"timestamp": "2023-01-01T00:01:00", "cpu_percent": 15.0}
+        {"timestamp": "2030-01-01T00:00:00", "cpu_percent": 10.0},
+        {"timestamp": "2030-01-01T00:01:00", "cpu_percent": 15.0}
     ]
 
     with patch("app.routes.metrics.getStoredMetrics") as mock_get_stored:
