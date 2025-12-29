@@ -14,5 +14,5 @@ if not logging.getLogger().hasHandlers():
         stream=sys.stdout,
     )
 
-def InitializeLogger(name=None):
+def IntializeLogger(name=None):
     return logging.getLogger(name or "app")

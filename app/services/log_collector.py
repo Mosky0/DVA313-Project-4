@@ -1,10 +1,11 @@
+import docker
 import datetime
 import asyncio
 from collections import deque
 from app import socketio
-from app.utils.dockerClient import DockerClientProvider
 
-client = DockerClientProvider.get_docker_client()
+
+client = docker.from_env()
 logs_dic = {}
 
 # Continuously get log from one container

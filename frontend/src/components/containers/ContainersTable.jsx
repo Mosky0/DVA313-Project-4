@@ -1,33 +1,16 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState } from "react";
 import { FaChevronUp, FaChevronDown } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 
 export default function ContainersTable({ containers = [] }) {
   const navigate = useNavigate();
+
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [sortField, setSortField] = useState("");
-  const [sortOrder, setSortOrder] = useState("");  
-  const [initialLoading, setInitialLoading] = useState(true);
-  const prevContainersLength = useRef(null);
-
-  useEffect(() => {
-    if (!containers) return;
-
-    const currentLength = containers.length;
-    const prevLength = prevContainersLength.current;
-
-    if (prevLength === null) {
-      prevContainersLength.current = currentLength;
-      return;
-    }
-    if (currentLength === prevLength && currentLength > 0) {
-      setInitialLoading(false);
-    }
-
-    prevContainersLength.current = currentLength;
-  }, [containers]);
+  const [sortOrder, setSortOrder] = useState("");
 
 
   const handleSort = (field) => {
@@ -108,6 +91,7 @@ export default function ContainersTable({ containers = [] }) {
         </div>
       </div>
 
+
       {/* Table */}
       <div className="overflow-auto">
         <table className="w-full text-sm">
@@ -153,7 +137,7 @@ export default function ContainersTable({ containers = [] }) {
                 >
                   <td className="py-2 px-3 flex items-center">
                     <div className={`w-1 h-8 rounded mr-3 ${isRunning ? "bg-green-500" : "bg-red-500"}`} />
-                    <div className="font-mono text-xs">{r.id.length > 10 ? `${r.id.substring(0, 10)}...` : r.id}</div>
+                    <div className="font-mono text-xs">{r.id}</div>
                   </td>
 
 
@@ -187,35 +171,7 @@ export default function ContainersTable({ containers = [] }) {
             })}
           </tbody>
         </table>
-        {initialLoading && (
-            <div className="flex justify-center items-center py-4">
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <svg
-                  className="animate-spin h-4 w-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                  />
-                </svg>
-                Loading containers…
-              </div>
-            </div>
-          )}
       </div>
-
     </>
   );
 }

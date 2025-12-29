@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FaChevronUp, FaChevronDown, FaChevronRight, FaDocker } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
@@ -15,8 +15,6 @@ export default function Containers() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorShown, setErrorShown] = useState(false);
-  const [containersLoading, setContainersLoading] = useState(false);
-  const prevContainerLength = useRef(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,40 +24,51 @@ export default function Containers() {
 
     const pollContainers = async () => {
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/containers/all/stats`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`${API_BASE_URL}/containers?_=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to load containers");
-
         const data = await res.json();
-        if (!mounted || !Array.isArray(data)) return;
+
+        if (!mounted) return;
 
         const mapped = data.map((c) => ({
-          id: c.id || c.Id,
-          name: c.name || c.Name || c.id,
-          cpu: `${Math.round(c.cpu_percent ?? 0)}%`,
-          mem: c.mem_usage ?? "—",
+          id: c.id,
+          name: c.name,
+          cpu: "-",
+          mem: "-",
           status: normalizeStatus(c.status),
         }));
 
-        setRows(mapped);
-        setLoading(false);
-        setErrorShown(false);
-        if (prevContainerLength.current !== null && prevContainerLength.current === data.length) {
-          setContainersLoading(true);
-        } 
-        else {
-          setContainersLoading(false);
+        const statsPromises = mapped.map((container) =>
+          fetch(`${API_BASE_URL}/containers/${container.id}/stats`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((stats) => ({
+              id: container.id,
+              cpu: stats?.cpu_percent !== undefined ? `${(stats.cpu_percent).toFixed(2)}%` : "N/A",
+              mem: stats?.mem_usage || "N/A",
+            }))
+            .catch(() => ({ id: container.id, cpu: "N/A", mem: "N/A" }))
+        );
+
+        const statsResults = await Promise.all(statsPromises);
+
+        if (mounted) {
+          const updatedRows = mapped.map((row) => {
+            const stats = statsResults.find((s) => s.id === row.id);
+            return stats ? { ...row, ...stats } : row;
+          });
+          setRows(updatedRows);
+          setLoading(false);
+          setErrorShown(false);
         }
-        prevContainerLength.current = data.length;
       } catch (err) {
         console.error("Poll error:", err);
-        if (mounted && !errorShown) {
-          toast.error("Failed to load containers");
-          setErrorShown(true);
+        if (mounted) {
+          if (!errorShown) {
+            toast.error("Failed to load containers");
+            setErrorShown(true);
+          }
+          setLoading(false);
         }
-        if (mounted) setLoading(false);
       }
     };
 
@@ -177,7 +186,7 @@ export default function Containers() {
             ) : (
               sorted.map((row) => (
                 <tr key={row.id} className="border-b hover:bg-gray-100">
-                  <td className="py-3 px-4">{row.id.length > 15 ? `${row.id.substring(0, 15)}...` : row.id}</td>
+                  <td className="py-3 px-4">{row.id}</td>
                   <td className="py-3 px-4">{row.name}</td>
                   <td className="py-3 px-4">{row.cpu}</td>
                   <td className="py-3 px-4">{row.mem}</td>
@@ -192,33 +201,6 @@ export default function Containers() {
             )}
           </tbody>
         </table>
-        {!containersLoading && (
-            <div className="flex justify-center items-center py-4">
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <svg
-                  className="animate-spin h-4 w-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                  />
-                </svg>
-                Loading containers…
-              </div>
-            </div>
-          )}
       </div>
     </div>
   );
