@@ -508,8 +508,6 @@ useEffect(() => {
   }
 }, [backendStatus]);
 
-
-
    const cpuTrendSeries = useMemo(() => {
     const hasSelectedCores = Object.keys(selectedCores).some(key => selectedCores[key]);
     const coreKeys = Object.keys(cpuCoreHistory).filter(coreIdx => selectedCores[coreIdx]);
@@ -560,6 +558,21 @@ useEffect(() => {
     });
   }, [selectedCores, cpuCoreHistory, systemCpuHistory]);
 
+  const cpuTrendMax = useMemo(() => {
+    if (!cpuTrendSeries.length) return 100;
+
+    let max = 0;
+    for (const row of cpuTrendSeries) {
+      for (const [k, v] of Object.entries(row)) {
+        if (k === "time") continue;
+        const n = typeof v === "number" ? v : Number(v);
+        if (Number.isFinite(n)) max = Math.max(max, n);
+      }
+    }
+
+    const padded = max + Math.max(5, max * 0.1);
+    return Math.min(100, Math.ceil(padded));
+  }, [cpuTrendSeries]);
 
   const memPct = useMemo(() => {
     if (!system) return 0;
@@ -874,7 +887,7 @@ useEffect(() => {
       </div>
 
       {/* CPU TREND */}
-      
+          
         <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
 
           <div className="flex items-center justify-between mb-2">
@@ -896,7 +909,12 @@ useEffect(() => {
               <LineChart data={cpuTrendSeries}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="time" stroke="#888" tick={{ fontSize: 12 }} />
-                <YAxis stroke="#888" domain={[0, 100]} tick={{ fontSize: 12 }} width={30} />
+                <YAxis
+                  stroke="#888"
+                  domain={[0, cpuTrendMax]}
+                  tick={{ fontSize: 12 }}
+                  width={30}
+                />
                 <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
                 {selectedCores.systemCpu && (

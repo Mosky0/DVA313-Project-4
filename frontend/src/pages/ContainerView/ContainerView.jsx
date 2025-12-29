@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { useParams, useLocation } from "react-router-dom";
 import { FaDocker, FaChevronUp, FaChevronDown } from "react-icons/fa";
@@ -25,6 +25,18 @@ export default function ContainerView() {
   const [isStopping, setIsStopping] = useState(false);
 
   const [cpuHistory, setCpuHistory] = useState([]);
+
+  const cpuTrendMax = useMemo(() => {
+    if (!cpuHistory.length) return 100;
+
+    const max = cpuHistory.reduce((m, p) => {
+      const n = Number(p.value);
+      return Number.isFinite(n) ? Math.max(m, n) : m;
+    }, 0);
+
+    const padded = max + Math.max(2, max * 0.03);
+    return Math.min(100, Math.ceil(padded));
+  }, [cpuHistory]);
 
   const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
   const [logsLoading, setLogsLoading] = useState(false);
@@ -502,7 +514,7 @@ export default function ContainerView() {
                     />
                     <YAxis
                       stroke="#555"
-                      domain={[0, 100]}
+                      domain={[0, cpuTrendMax]}
                       tickFormatter={(value) => `${value}%`}
                     />
                     <Tooltip />
