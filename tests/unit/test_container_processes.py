@@ -33,6 +33,32 @@ class TestContainerProcesses:
             assert 'mem_percent' in proc
             assert 'state' in proc
             assert 'command' in proc
+   
+    """CRITICAL TEST"""
+    def test_get_processes_container_not_found(self, client):
+        """Test process retrieval when container doesn't exist."""
+        with patch("app.routes.metrics.docker_client") as mock_docker:
+            mock_docker.containers.get.side_effect = NotFound("Container not found")
+            
+            response = client.get('/api/containers/nonexistent/processes')
+            
+            assert response.status_code == 410
+            data = response.get_json()
+            assert 'error' in data
+
+    """CRITICAL TEST"""
+    def test_get_processes_container_not_running(self, client, mock_container_stopped):
+        """Test retrieval of processes when container is not running."""
+        with patch("app.routes.metrics.docker_client") as mock_docker:
+            mock_docker.containers.get.return_value = mock_container_stopped
+            
+            response = client.get('/api/containers/stop123/processes')
+            
+            assert response.status_code == 200
+            data = response.get_json()
+            
+            assert data['status'] == 'exited'
+            assert data['processes'] == []
 
     """CRITICAL TEST"""
     def test_get_processes_fallback_to_docker_top(self, client, mock_container, sample_processes):
@@ -56,31 +82,10 @@ class TestContainerProcesses:
             assert len(data['processes']) == 3
             mock_container.top.assert_called_once()
     
-    """CRITICAL TEST"""
-    def test_get_processes_container_not_running(self, client, mock_container_stopped):
-        """Test retrieval of processes when container is not running."""
-        with patch("app.routes.metrics.docker_client") as mock_docker:
-            mock_docker.containers.get.return_value = mock_container_stopped
-            
-            response = client.get('/api/containers/stop123/processes')
-            
-            assert response.status_code == 200
-            data = response.get_json()
-            
-            assert data['status'] == 'exited'
-            assert data['processes'] == []
-   
-    """CRITICAL TEST"""
-    def test_get_processes_container_not_found(self, client):
-        """Test process retrieval when container doesn't exist."""
-        with patch("app.routes.metrics.docker_client") as mock_docker:
-            mock_docker.containers.get.side_effect = NotFound("Container not found")
-            
-            response = client.get('/api/containers/nonexistent/processes')
-            
-            assert response.status_code == 410
-            data = response.get_json()
-            assert 'error' in data
+
+
+
+
 
     def test_get_processes_state_normalization(self, client, mock_container):
         """Test that process states are normalized correctly."""
