@@ -43,3 +43,55 @@ def test_list_containers_docker_error(client):
         data = response.get_json()
 
         assert data == {"error": "Unexpected error occurred", "message": "Failed to list containers"}
+
+
+def test_list_containers_with_stats(client):
+    mock_container = MagicMock()
+    mock_container.short_id = "containerID"
+    mock_container.name = "sampleIDE"
+    mock_container.status = "running"
+    mock_container.image.tags = ["ide:latest"]
+
+    with patch("app.routes.metrics.docker_client") as mock_docker, \
+         patch("app.routes.metrics.getLatestContainerMetrics") as mock_get_latest:
+        mock_docker.containers.list.return_value = [mock_container]
+        mock_get_latest.return_value = {"cpu_percent": 15.5, "mem_usage": "100 MB"}
+
+        response = client.get("/api/containers/with-stats")
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        assert data == [{
+            "id": "containerID",
+            "name": "sampleIDE",
+            "status": "running",
+            "image": ["ide:latest"],
+            "cpu": "15.50%",
+            "mem": "100 MB"
+        }]
+
+
+def test_list_containers_with_stats_stopped(client):
+    mock_container = MagicMock()
+    mock_container.short_id = "containerID"
+    mock_container.name = "sampleIDE"
+    mock_container.status = "exited"
+    mock_container.image.tags = ["ide:latest"]
+
+    with patch("app.routes.metrics.docker_client") as mock_docker:
+        mock_docker.containers.list.return_value = [mock_container]
+
+        response = client.get("/api/containers/with-stats")
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        assert data == [{
+            "id": "containerID",
+            "name": "sampleIDE",
+            "status": "exited",
+            "image": ["ide:latest"],
+            "cpu": "-",
+            "mem": "-"
+        }]
