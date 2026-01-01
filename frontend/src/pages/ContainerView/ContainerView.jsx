@@ -26,6 +26,11 @@ export default function ContainerView() {
 
   const [cpuHistory, setCpuHistory] = useState([]);
 
+  const [filePathInput, setFilePathInput] = useState("");
+  const [fileTabs, setFileTabs] = useState([]);
+  // each tab: { key, name, path, content, loading, error, truncated }
+
+
   const cpuTrendMax = useMemo(() => {
     if (!cpuHistory.length) return 100;
 
@@ -75,6 +80,55 @@ export default function ContainerView() {
     } else {
       setSortField(field);
       setSortOrder("asc");
+    }
+  };
+
+  const openFilePath = async () => {
+    const path = filePathInput.trim();
+    if (!path) return;
+
+    const name = path.split("/").filter(Boolean).pop() || path; // tab label
+    const key = `file:${path}`;
+
+    // Create tab if it doesn't exist
+    setFileTabs((prev) => {
+      if (prev.some((t) => t.key === key)) return prev;
+      return [
+        ...prev,
+        { key, name, path, content: "", loading: true, error: "", truncated: false },
+      ];
+    });
+
+    // Switch to it
+    setActiveTab(key);
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/containers/${id}/file?path=${encodeURIComponent(path)}`
+      );
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) throw new Error(data?.message || "Failed to open file");
+
+      setFileTabs((prev) =>
+        prev.map((t) =>
+          t.key === key
+            ? {
+                ...t,
+                content: data.content ?? "",
+                truncated: !!data.truncated,
+                loading: false,
+                error: "",
+              }
+            : t
+        )
+      );
+    } catch (e) {
+      setFileTabs((prev) =>
+        prev.map((t) =>
+          t.key === key ? { ...t, loading: false, error: e.message } : t
+        )
+      );
     }
   };
 
@@ -424,7 +478,7 @@ export default function ContainerView() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-6 border-b mb-6">
+      <div className="flex gap-6 border-b mb-6 overflow-x-auto">
         <button
           className={`pb-2 ${
             activeTab === "details"
@@ -446,6 +500,21 @@ export default function ContainerView() {
         >
           Logs
         </button>
+
+        {fileTabs.map((t) => (
+          <button
+            key={t.key}
+            className={`pb-2 whitespace-nowrap ${
+              activeTab === t.key
+                ? "border-b-2 border-blue-600 text-blue-600 font-semibold"
+                : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab(t.key)}
+            title={t.path}
+          >
+            {t.name}
+          </button>
+        ))}
       </div>
 
       {/* DETAILS TAB */}
@@ -650,6 +719,74 @@ export default function ContainerView() {
           )}
         </div>
       )}
+
+      {/* FILE TAB */}
+      {activeTab.startsWith("file:") && (() => {
+        const tab = fileTabs.find((t) => t.key === activeTab);
+        if (!tab) return null;
+
+        return (
+          <div className="bg-white shadow rounded-xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-gray-500 text-sm">File</p>
+                <p className="font-semibold">{tab.path}</p>
+              </div>
+
+              <button
+                className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
+                onClick={() => {
+                  setFileTabs((prev) => prev.filter((x) => x.key !== tab.key));
+                  setActiveTab("details");
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            {tab.loading && <p className="text-gray-500 text-sm">Loading…</p>}
+            {tab.error && <p className="text-red-500 text-sm">{tab.error}</p>}
+
+            {!tab.loading && !tab.error && (
+              <>
+                {tab.truncated && (
+                  <p className="text-amber-600 text-sm mb-2">Preview truncated.</p>
+                )}
+
+                <pre className="bg-black text-green-200 rounded-xl p-4 overflow-auto max-h-[520px] text-sm font-mono">
+                  {tab.content || "(empty)"}
+                </pre>
+              </>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* OPEN FILE INPUT */}
+      <div className="mt-8 bg-white shadow rounded-xl p-4">
+        <p className="font-semibold text-gray-700 mb-2">Open file inside container</p>
+
+        <div className="flex gap-3">
+          <input
+            className="flex-1 border rounded-lg px-3 py-2 text-sm"
+            placeholder="Try: /app/sample.txt"
+            value={filePathInput}
+            onChange={(e) => setFilePathInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") openFilePath();
+            }}
+          />
+
+          <button
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+            onClick={openFilePath}
+          >
+            Open
+          </button>
+        </div>
+      </div>
+
+
     </div>
   );
 }
