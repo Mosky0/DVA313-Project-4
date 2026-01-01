@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import ChartCard from "../../components/ui/ChartCard";
 import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
-import { API_BASE_URL } from "../../config";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid
 } from "recharts";
@@ -366,9 +365,9 @@ const Dashboard = React.memo(() => {
     const fetchSystemData = async () => {
       try {
         const [sysRes, historyRes, latestSysRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/system`),
-          fetch(`${API_BASE_URL}/system/metrics/history`),
-          fetch(`${API_BASE_URL}/system/metrics/latest`)
+          fetch(`/api/system`),
+          fetch(`/api/system/metrics/history`),
+          fetch(`/api/system/metrics/latest`)
         ]);
 
 
@@ -426,7 +425,7 @@ const Dashboard = React.memo(() => {
 
     const fetchAllContainerStats = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/containers/all/stats`, {
+        const res = await fetch(`/api/containers/all/stats`, {
           cache: "no-store",
         });
 
@@ -458,7 +457,7 @@ const Dashboard = React.memo(() => {
 
   const checkBackend = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/system`, {
+      const res = await fetch(`/api/system`, {
         cache: "no-store",
       });
 

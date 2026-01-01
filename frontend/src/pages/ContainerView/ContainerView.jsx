@@ -11,7 +11,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { API_BASE_URL } from "../../config";
 import { containerCache } from "../../utils/cache";
 
 export default function ContainerView() {
@@ -138,7 +137,7 @@ export default function ContainerView() {
     const TOAST_ID = "stop-container";
 
     try {
-      const response = await fetch(`${API_BASE_URL}/containers/${id}/stop`, {
+      const response = await fetch(`/api/containers/${id}/stop`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -192,7 +191,7 @@ export default function ContainerView() {
       }
 
       try {
-        const res = await fetch(`${API_BASE_URL}/containers/${id}/stats`, {
+        const res = await fetch(`/api/containers/${id}/stats`, {
           signal: controller.signal,
         });
 
@@ -274,7 +273,7 @@ export default function ContainerView() {
         return;
       }
 
-      fetch(`${API_BASE_URL}/containers/${id}/metrics/history`)
+      fetch(`/api/containers/${id}/metrics/history`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch stored metrics");
           return res.json();
@@ -322,7 +321,7 @@ export default function ContainerView() {
         setLogsLoading(true);
         setLogsError("");
 
-        const res = await fetch(`${API_BASE_URL}/containers/${id}/logs`, {
+        const res = await fetch(`/api/containers/${id}/logs`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error("Failed to fetch logs");
@@ -367,7 +366,7 @@ export default function ContainerView() {
       setProcessesLoading(true);
       setProcessesError("");
 
-      fetch(`${API_BASE_URL}/containers/${id}/processes`)
+      fetch(`/api/containers/${id}/processes`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch processes");
           return res.json();

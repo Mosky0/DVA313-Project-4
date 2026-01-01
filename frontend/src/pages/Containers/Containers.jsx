@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { FaChevronUp, FaChevronDown, FaChevronRight, FaDocker } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { API_BASE_URL } from "../../config";
 
 const filterOptions = ["All", "Running", "Stopped"];
 
@@ -27,7 +26,7 @@ export default function Containers() {
     const pollContainers = async () => {
       try {
         const res = await fetch(
-          `${API_BASE_URL}/containers/all/stats`,
+          `/api/containers/all/stats`,
           { cache: "no-store" }
         );
         if (!res.ok) throw new Error("Failed to load containers");

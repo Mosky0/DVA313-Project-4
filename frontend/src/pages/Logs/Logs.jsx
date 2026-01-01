@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "../../config"; // make sure this exists
 import { containerCache } from "../../utils/cache";
 
 
@@ -49,7 +48,7 @@ export default function Logs() {
         if (cachedContainers) {
           data = cachedContainers;
         } else {
-          const res = await fetch(`${API_BASE_URL}/containers`);
+          const res = await fetch(`/api/containers`);
 
           console.log("Containers response status:", res.status);
 
@@ -117,7 +116,7 @@ export default function Logs() {
         }
 
         const res = await fetch(
-          `${API_BASE_URL}/containers/${selectedContainer}/logs`
+          `/api/containers/${selectedContainer}/logs`
         );
 
         console.log("Logs response status:", res.status);
