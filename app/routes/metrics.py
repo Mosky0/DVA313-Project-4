@@ -582,3 +582,67 @@ def container_file(container_id):
             "message": "Unexpected error occurred",
             "details": str(e),
         }), 500
+
+
+@metrics_bp.route("/containers/<container_id>/fs")
+def container_fs(container_id):
+    path = (request.args.get("path") or "/").strip()
+    if not path.startswith("/"):
+        return jsonify({"message": "Path must start with /"}), 400
+
+    try:
+        container = docker_client.containers.get(container_id)
+
+        # -A: almost all (skip . and ..)
+        # -p: append / to directories
+        # -1: one entry per line
+        cmd = ["sh", "-lc", f"""
+        p={_sh_quote(path)}
+        if [ ! -d "$p" ]; then
+          echo "__NOTDIR__"
+          exit 3
+        fi
+        ls -Ap1 "$p" 2>/dev/null
+        """]
+
+        result = container.exec_run(cmd, stdout=True, stderr=True)
+
+        if result.exit_code == 3:
+            return jsonify({"message": f"Not a directory: {path}"}), 400
+
+        if result.exit_code != 0:
+            err = (result.output or b"").decode("utf-8", "replace")
+            return jsonify({"message": "Failed to list directory", "details": err}), 500
+
+        raw = (result.output or b"").decode("utf-8", "replace").splitlines()
+
+        entries = []
+        for name in raw:
+            if not name:
+                continue
+            is_dir = name.endswith("/")
+            clean = name[:-1] if is_dir else name
+
+            full_path = (path.rstrip("/") + "/" + clean) if path != "/" else ("/" + clean)
+
+            entries.append({
+                "name": clean,
+                "path": full_path,
+                "type": "dir" if is_dir else "file",
+                "size": None,
+                "mtime": None,
+            })
+
+        entries.sort(key=lambda e: (0 if e["type"] == "dir" else 1, e["name"].lower()))
+        return jsonify({"path": path, "entries": entries}), 200
+
+    except NotFound:
+        return jsonify({"message": "Container not found", "container_id": container_id}), 410
+    except Exception as e:
+        logger.error(f"Error listing fs for {container_id} path={path}: {e}")
+        return jsonify({"message": "Unexpected error occurred", "details": str(e)}), 500
+
+
+def _sh_quote(s: str) -> str:
+    # safe single-quote shell escaping
+    return "'" + s.replace("'", "'\"'\"'") + "'"

@@ -13,74 +13,108 @@ import {
 } from "recharts";
 import { containerCache } from "../../utils/cache";
 
-export default function ContainerView() {
-  const { id } = useParams(); 
-  const location = useLocation();
-  const [activeTab, setActiveTab] = useState("details");
-  const containerName = location.state?.name || "";
-  const [stats, setStats] = useState(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [statsError, setStatsError] = useState("");
-  const [isStopping, setIsStopping] = useState(false);
+  export default function ContainerView() {
+    const { id } = useParams(); 
+    const location = useLocation();
+    const [activeTab, setActiveTab] = useState("details");
+    const containerName = location.state?.name || "";
+    const [stats, setStats] = useState(null);
+    const [statsLoading, setStatsLoading] = useState(true);
+    const [statsError, setStatsError] = useState("");
+    const [isStopping, setIsStopping] = useState(false);
 
-  const [cpuHistory, setCpuHistory] = useState([]);
+    const [cpuHistory, setCpuHistory] = useState([]);
 
-  const [filePathInput, setFilePathInput] = useState("");
-  const [fileTabs, setFileTabs] = useState([]);
-  // each tab: { key, name, path, content, loading, error, truncated }
+    const [filePathInput, setFilePathInput] = useState("");
+    const [fileTabs, setFileTabs] = useState([]);
+    // each tab: { key, name, path, content, loading, error, truncated }
 
 
-  const cpuTrendMax = useMemo(() => {
-    if (!cpuHistory.length) return 100;
+    const cpuTrendMax = useMemo(() => {
+      if (!cpuHistory.length) return 100;
 
-    const max = cpuHistory.reduce((m, p) => {
-      const n = Number(p.value);
-      return Number.isFinite(n) ? Math.max(m, n) : m;
-    }, 0);
+      const max = cpuHistory.reduce((m, p) => {
+        const n = Number(p.value);
+        return Number.isFinite(n) ? Math.max(m, n) : m;
+      }, 0);
 
-    const padded = max + Math.max(2, max * 0.03);
-    return Math.min(100, Math.ceil(padded));
-  }, [cpuHistory]);
+      const padded = max + Math.max(2, max * 0.03);
+      return Math.min(100, Math.ceil(padded));
+    }, [cpuHistory]);
 
-  const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [logsError, setLogsError] = useState("");
+    const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
+    const [logsLoading, setLogsLoading] = useState(false);
+    const [logsError, setLogsError] = useState("");
 
-  const statsIntervalRef = useRef(null);
-  const logsIntervalRef = useRef(null);
-  const logsBoxRef = useRef(null);
+    const statsIntervalRef = useRef(null);
+    const logsIntervalRef = useRef(null);
+    const logsBoxRef = useRef(null);
 
-  const stampLogs = (prevStamped, nextRaw) => {
-    const pool = new Map();
-    for (const item of prevStamped) {
-      const arr = pool.get(item.msg) || [];
-      arr.push(item.seenAt);
-      pool.set(item.msg, arr);
+    const stampLogs = (prevStamped, nextRaw) => {
+      const pool = new Map();
+      for (const item of prevStamped) {
+        const arr = pool.get(item.msg) || [];
+        arr.push(item.seenAt);
+        pool.set(item.msg, arr);
+      }
+
+      const now = Date.now();
+      return (nextRaw || []).map((msg, i) => {
+        const arr = pool.get(msg);
+        const reused = arr && arr.length ? arr.shift() : null;
+        if (arr && arr.length === 0) pool.delete(msg);
+        return { msg, seenAt: reused ?? (now + i) };
+      });
+    };
+
+    const [processes, setProcesses] = useState([]);
+    const [processesLoading, setProcessesLoading] = useState(false);
+    const [processesError, setProcessesError] = useState("");
+    const [sortField, setSortField] = useState("");
+    const [sortOrder, setSortOrder] = useState("asc");
+
+    const [fsPath, setFsPath] = useState("/");
+    const [fsEntries, setFsEntries] = useState([]);
+    const [fsLoading, setFsLoading] = useState(false);
+    const [fsError, setFsError] = useState("");
+    const fsCacheRef = useRef(new Map()); // path -> entries
+
+
+    const handleSort = (field) => {
+      if (sortField === field) {
+        setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+      } else {
+        setSortField(field);
+        setSortOrder("asc");
+      }
+    };
+    const fetchDir = async (path) => {
+    setFsPath(path);
+    setFsError("");
+
+    const cached = fsCacheRef.current.get(path);
+    if (cached) {
+      setFsEntries(cached);
+      return;
     }
 
-    const now = Date.now();
-    return (nextRaw || []).map((msg, i) => {
-      const arr = pool.get(msg);
-      const reused = arr && arr.length ? arr.shift() : null;
-      if (arr && arr.length === 0) pool.delete(msg);
-      return { msg, seenAt: reused ?? (now + i) };
-    });
-  };
+    try {
+      setFsLoading(true);
+      const res = await fetch(`/api/containers/${id}/fs?path=${encodeURIComponent(path)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Failed to list directory");
 
-  const [processes, setProcesses] = useState([]);
-  const [processesLoading, setProcessesLoading] = useState(false);
-  const [processesError, setProcessesError] = useState("");
-  const [sortField, setSortField] = useState("");
-  const [sortOrder, setSortOrder] = useState("asc");
-
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortOrder("asc");
+      const entries = Array.isArray(data.entries) ? data.entries : [];
+      fsCacheRef.current.set(path, entries);
+      setFsEntries(entries);
+    } catch (e) {
+      setFsError(e.message);
+      setFsEntries([]);
+    } finally {
+      setFsLoading(false);
     }
   };
+
 
   const openFilePath = async () => {
     const path = filePathInput.trim();
@@ -103,8 +137,9 @@ export default function ContainerView() {
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/containers/${id}/file?path=${encodeURIComponent(path)}`
+        `/api/containers/${id}/file?path=${encodeURIComponent(path)}`
       );
+
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) throw new Error(data?.message || "Failed to open file");
@@ -393,6 +428,22 @@ export default function ContainerView() {
     return () => clearInterval(intervalId);
   }, [activeTab, id]);
 
+  useEffect(() => {
+    if (activeTab === "files") {
+      fetchDir(fsPath || "/");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, id]);
+
+  useEffect(() => {
+    fsCacheRef.current.clear();
+    setFsPath("/");
+    setFsEntries([]);
+    setFsError("");
+  }, [id]);
+
+
+
   const memPercent = (() => {
     if (!stats || !stats.mem_usage_bytes || !stats.mem_limit_bytes) return 0;
     if (stats.mem_limit_bytes === 0) return 0;
@@ -499,6 +550,18 @@ export default function ContainerView() {
         >
           Logs
         </button>
+
+        <button
+          className={`pb-2 ${
+            activeTab === "files"
+              ? "border-b-2 border-blue-600 text-blue-600 font-semibold"
+              : "text-gray-600"
+          }`}
+          onClick={() => setActiveTab("files")}
+        >
+          Files
+        </button>
+
 
         {fileTabs.map((t) => (
           <button
@@ -761,29 +824,113 @@ export default function ContainerView() {
         );
       })()}
 
-      {/* OPEN FILE INPUT */}
-      <div className="mt-8 bg-white shadow rounded-xl p-4">
-        <p className="font-semibold text-gray-700 mb-2">Open file inside container</p>
+      {activeTab === "files" && (
+        <div className="bg-white shadow rounded-xl p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-gray-500 text-sm">Filesystem</p>
+              <p className="font-mono font-semibold">{fsPath}</p>
+            </div>
 
-        <div className="flex gap-3">
-          <input
-            className="flex-1 border rounded-lg px-3 py-2 text-sm"
-            placeholder="Try: /app/sample.txt"
-            value={filePathInput}
-            onChange={(e) => setFilePathInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") openFilePath();
-            }}
-          />
+            <div className="flex gap-2">
+              <button
+                className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
+                onClick={() => {
+                  const parent =
+                    fsPath === "/" ? "/" : fsPath.replace(/\/[^/]+$/, "") || "/";
+                  fetchDir(parent);
+                }}
+              >
+                Up
+              </button>
 
-          <button
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
-            onClick={openFilePath}
-          >
-            Open
-          </button>
+              <button
+                className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
+                onClick={() => {
+                  fsCacheRef.current.delete(fsPath);
+                  fetchDir(fsPath);
+                }}
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {fsLoading && <p className="text-gray-500 text-sm">Loading…</p>}
+          {fsError && <p className="text-red-500 text-sm">{fsError}</p>}
+
+          {!fsLoading && !fsError && (
+            <div className="border rounded-lg overflow-hidden">
+              <div className="grid grid-cols-[1fr_120px_220px] bg-gray-50 text-xs text-gray-600 px-3 py-2">
+                <div>Name</div>
+                <div className="text-right">Size</div>
+                <div className="text-right">Modified</div>
+              </div>
+
+              {fsEntries.length === 0 ? (
+                <div className="px-3 py-3 text-sm text-gray-500">Empty directory</div>
+              ) : (
+                fsEntries.map((e) => (
+                  <button
+                    key={e.path}
+                    className="w-full text-left grid grid-cols-[1fr_120px_220px] px-3 py-2 text-sm hover:bg-gray-50 border-t"
+                    onClick={() => {
+                      if (e.type === "dir") {
+                        fetchDir(e.path);
+                      } else if (e.type === "file") {
+                        setFilePathInput(e.path);
+                        setTimeout(openFilePath, 0);
+                      }
+                    }}
+                    title={e.path}
+                  >
+                    <div className="font-mono truncate">
+                      {e.type === "dir" ? "[DIR] " : "[FILE] "}
+                      {e.name}
+                    </div>
+                    <div className="text-right text-gray-600">
+                      {e.type === "file" ? e.size : "—"}
+                    </div>
+                    <div className="text-right text-gray-600 truncate">
+                      {e.mtime || "—"}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      )}  
+
+
+      {/* OPEN FILE INPUT (FILES TAB ONLY) */}
+      {activeTab === "files" && (
+        <div className="mt-8 bg-white shadow rounded-xl p-4">
+          <p className="font-semibold text-gray-700 mb-2">
+            Open file inside container
+          </p>
+
+          <div className="flex gap-3">
+            <input
+              className="flex-1 border rounded-lg px-3 py-2 text-sm"
+              placeholder="Try: /app/sample.txt"
+              value={filePathInput}
+              onChange={(e) => setFilePathInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") openFilePath();
+              }}
+            />
+
+            <button
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+              onClick={openFilePath}
+            >
+              Open
+            </button>
+          </div>
+        </div>
+      )}
+
 
 
     </div>
