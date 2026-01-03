@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { useParams, useLocation } from "react-router-dom";
-import { FaDocker } from "react-icons/fa";
+import { FaDocker, FaChevronUp, FaChevronDown } from "react-icons/fa";
 import {
   LineChart,
   Line,
@@ -11,7 +11,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { API_BASE_URL } from "../../config";
 import { containerCache } from "../../utils/cache";
 
 export default function ContainerView() {
@@ -25,6 +24,18 @@ export default function ContainerView() {
   const [isStopping, setIsStopping] = useState(false);
 
   const [cpuHistory, setCpuHistory] = useState([]);
+
+  const cpuTrendMax = useMemo(() => {
+    if (!cpuHistory.length) return 100;
+
+    const max = cpuHistory.reduce((m, p) => {
+      const n = Number(p.value);
+      return Number.isFinite(n) ? Math.max(m, n) : m;
+    }, 0);
+
+    const padded = max + Math.max(2, max * 0.03);
+    return Math.min(100, Math.ceil(padded));
+  }, [cpuHistory]);
 
   const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
   const [logsLoading, setLogsLoading] = useState(false);
@@ -78,6 +89,17 @@ export default function ContainerView() {
   const [processes, setProcesses] = useState([]);
   const [processesLoading, setProcessesLoading] = useState(false);
   const [processesError, setProcessesError] = useState("");
+  const [sortField, setSortField] = useState("");
+  const [sortOrder, setSortOrder] = useState("asc");
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
 
   // --------- STOP A CONTAINER ----------
   const stopContainer = async () => {
@@ -85,7 +107,7 @@ export default function ContainerView() {
     const TOAST_ID = "stop-container";
 
     try {
-      const response = await fetch(`${API_BASE_URL}/containers/${id}/stop`, {
+      const response = await fetch(`/api/containers/${id}/stop`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -139,7 +161,7 @@ export default function ContainerView() {
       }
 
       try {
-        const res = await fetch(`${API_BASE_URL}/containers/${id}/stats`, {
+        const res = await fetch(`/api/containers/${id}/stats`, {
           signal: controller.signal,
         });
 
@@ -221,7 +243,7 @@ export default function ContainerView() {
         return;
       }
 
-      fetch(`${API_BASE_URL}/containers/${id}/metrics/history`)
+      fetch(`/api/containers/${id}/metrics/history`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch stored metrics");
           return res.json();
@@ -269,7 +291,7 @@ export default function ContainerView() {
         setLogsLoading(true);
         setLogsError("");
 
-        const res = await fetch(`${API_BASE_URL}/containers/${id}/logs`, {
+        const res = await fetch(`/api/containers/${id}/logs`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error("Failed to fetch logs");
@@ -314,7 +336,7 @@ export default function ContainerView() {
       setProcessesLoading(true);
       setProcessesError("");
 
-      fetch(`${API_BASE_URL}/containers/${id}/processes`)
+      fetch(`/api/containers/${id}/processes`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch processes");
           return res.json();
@@ -338,7 +360,7 @@ export default function ContainerView() {
     fetchProcesses();
 
     // Poll every 5 seconds
-    const intervalId = setInterval(fetchProcesses, 5000);
+    const intervalId = setInterval(fetchProcesses, 10000);
 
     return () => clearInterval(intervalId);
   }, [activeTab, id]);
@@ -522,7 +544,7 @@ export default function ContainerView() {
                     />
                     <YAxis
                       stroke="#555"
-                      domain={[0, 100]}
+                      domain={[0, cpuTrendMax]}
                       tickFormatter={(value) => `${value}%`}
                     />
                     <Tooltip />
@@ -550,56 +572,89 @@ export default function ContainerView() {
             {processesLoading && processes.length === 0 ? (
               <p className="text-gray-500 text-sm">Loading processes…</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="text-gray-600 border-b bg-gray-50">
-                      <th className="py-3 px-3">PID</th>
-                      <th className="py-3 px-3">CPU%</th>
-                      <th className="py-3 px-3">MEM%</th>
-                      <th className="py-3 px-3">State</th>
-                      <th className="py-3 px-3">CPU Time</th>
-                      <th className="py-3 px-3">Command</th>
-                    </tr>
-                  </thead>
+              (() => {
+                const sortedProcesses = [...processes].sort((a, b) => {
+                  if (!sortField) return 0;
+                  const valA = a[sortField];
+                  const valB = b[sortField];
+                  if (typeof valA === "string" && typeof valB === "string") {
+                    return sortOrder === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                  }
+                  return sortOrder === "asc" ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+                });
 
-                  <tbody>
-                    {processes.length === 0 ? (
-                      <tr className="border-b text-sm">
-                        <td className="py-2" colSpan="6">
-                          <span className="text-gray-500">
-                            No process data available
-                          </span>
-                        </td>
-                      </tr>
-                    ) : (
-                      processes.map((proc, idx) => (
-                        <tr
-                          key={idx}
-                          className="border-b text-sm hover:bg-gray-50"
-                        >
-                          <td className="py-2 px-3">{proc.pid || "—"}</td>
-                          <td className="px-3">
-                            {proc.cpu_percent != null
-                              ? `${proc.cpu_percent}%`
-                              : "—"}
-                          </td>
-                          <td className="px-3">
-                            {proc.mem_percent != null
-                              ? `${proc.mem_percent}%`
-                              : "—"}
-                          </td>
-                          <td className="px-3">{proc.state || "—"}</td>
-                          <td className="px-3">{proc.time || "—"}</td>
-                          <td className="px-3 truncate max-w-xs">
-                            {proc.command || "—"}
-                          </td>
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-gray-600 border-b bg-gray-50">
+                          {[
+                            { key: "pid", label: "PID" },
+                            { key: "cpu_percent", label: "CPU%" },
+                            { key: "mem_percent", label: "MEM%" },
+                            { key: "state", label: "State" },
+                            { key: "time", label: "CPU Time" },
+                            { key: "command", label: "Command" },
+                          ].map((col) => (
+                            <th
+                              key={col.key}
+                              className="py-3 px-3 cursor-pointer select-none"
+                              onClick={() => handleSort(col.key)}
+                            >
+                              <div className="flex items-center gap-1">
+                                {col.label}
+                                {sortField === col.key && (
+                                  sortOrder === "asc" ? (
+                                    <FaChevronUp className="text-xs" />
+                                  ) : (
+                                    <FaChevronDown className="text-xs" />
+                                  )
+                                )}
+                              </div>
+                            </th>
+                          ))}
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+
+                      <tbody>
+                        {sortedProcesses.length === 0 ? (
+                          <tr className="border-b text-sm">
+                            <td className="py-2" colSpan="6">
+                              <span className="text-gray-500">
+                                No process data available
+                              </span>
+                            </td>
+                          </tr>
+                        ) : (
+                          sortedProcesses.map((proc, idx) => (
+                            <tr
+                              key={idx}
+                              className="border-b text-sm hover:bg-gray-50"
+                            >
+                              <td className="py-2 px-3">{proc.pid || "—"}</td>
+                              <td className="px-3">
+                                {proc.cpu_percent != null
+                                  ? `${proc.cpu_percent}%`
+                                  : "—"}
+                              </td>
+                              <td className="px-3">
+                                {proc.mem_percent != null
+                                  ? `${proc.mem_percent}%`
+                                  : "—"}
+                              </td>
+                              <td className="px-3">{proc.state || "—"}</td>
+                              <td className="px-3">{proc.time || "—"}</td>
+                              <td className="px-3 truncate max-w-xs">
+                                {proc.command || "—"}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()
             )}
           </div>
         </>

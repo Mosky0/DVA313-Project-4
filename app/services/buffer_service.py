@@ -1,14 +1,14 @@
-import docker
 import threading
 import time
 import psutil
 from app.utils.ringBuffer import addContainerMetrics, addSystemMetrics
 from app.routes.metrics import compute_container_usage
+from app.utils.dockerClient import DockerClientProvider
 
 class MetricsCollector:
     def __init__(self, interval=5):
         self.interval = interval 
-        self.docker_client = docker.from_env()
+        self.docker_client = DockerClientProvider.get_docker_client()
         self.running = False
         self.thread = None
 
