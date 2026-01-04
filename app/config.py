@@ -12,8 +12,10 @@ from flask import Config
 class MetricsConfig: 
     """Configuration for metrics collection"""
 
-    # Size of the ring buffer for storing metrics
+    # Size of the ring buffer for storing container metrics
     RING_BUFFER_SIZE = int(os.getenv('RING_BUFFER_SIZE', 100))
+
+    # Size of the ring buffer for storing system metrics
     SYSTEM_METRICS_BUFFER_SIZE = int(os.getenv('SYSTEM_BUFFER_SIZE', 200))
 
     # Number of lines of logs to tail for monitoring
@@ -48,16 +50,20 @@ class MetricsConfig:
 
 
 # Global configuration instance
-config = Config()
+config = MetricsConfig()
 
 
 
 
 """ Helper functions for accessing configuration values"""
 
-# Get size of the ring buffer
+# Get size of the ring buffer for container metrics 
 def get_ring_buffer_size():
     return config.RING_BUFFER_SIZE
+
+# Get size of the ring buffer for system metrics
+def get_system_buffer_size():
+    return config.SYSTEM_METRICS_BUFFER_SIZE
 
 # Get number of log tail lines
 def get_log_tail_lines():
@@ -71,11 +77,29 @@ def get_max_processes():
 def get_stop_timeout():
     return config.CONTAINER_STOP_TIMEOUT
 
+# Get precision for bytes formatting 
+def get_bytes_precision():
+    return config.BYTES_PRECISION
+
+# Get precision for CPU formatting
+def get_cpu_precision():
+    return config.CPU_PRECISION
+
+# Get precision for memory formatting
+def get_memory_precision():
+    return config.MEMORY_PRECISION
+
 # Verify if stopping containers is allowed
 def is_stop_allowed():
     return config.ALLOW_CONTAINER_STOP
 
 # Verify if a feature is enabled
+"""
+Arguments:
+    feature_name: 'system_metrics', 'process_monitoring', 'log_monitoring'
+Returns:
+    bool: True if the feature is enabled, False otherwise
+"""
 def is_feature_enabled(feature_name):
     features = {
         'system_metrics': config.ENABLE_SYSTEM_METRICS,
