@@ -527,9 +527,10 @@ def stop_container(container_id):
             "message": "Failed to stop container",
         }), 500
 
-
+# File Explorer: max bytes returned when previewing a file (prevents huge responses)
 MAX_FILE_BYTES = 200_000  # preview size limit
 
+# File Explorer API: returns a safe preview of a file inside the container (used by "Open file" in the UI)
 @metrics_bp.route("/containers/<container_id>/file")
 def container_file(container_id):
     """
@@ -554,6 +555,7 @@ def container_file(container_id):
             f"if [ -f '{path}' ]; then head -c {MAX_FILE_BYTES} '{path}'; else exit 2; fi",
         ]
 
+        # Execute a shell command ("cmd") inside the container to retrieve filesystem data
         result = container.exec_run(cmd, stdout=True, stderr=True)
 
         if result.exit_code == 2:
@@ -583,7 +585,7 @@ def container_file(container_id):
             "details": str(e),
         }), 500
 
-
+# File Explorer API: lists one directory in the container (used by Files tab navigation + Up/Refresh)
 @metrics_bp.route("/containers/<container_id>/fs")
 def container_fs(container_id):
     path = (request.args.get("path") or "/").strip()
@@ -602,7 +604,7 @@ def container_fs(container_id):
           echo "__NOTDIR__"
           exit 3
         fi
-        ls -Ap1 "$p" 2>/dev/null
+        ls -Ap1 "$p"
         """]
 
         result = container.exec_run(cmd, stdout=True, stderr=True)
@@ -629,8 +631,6 @@ def container_fs(container_id):
                 "name": clean,
                 "path": full_path,
                 "type": "dir" if is_dir else "file",
-                "size": None,
-                "mtime": None,
             })
 
         entries.sort(key=lambda e: (0 if e["type"] == "dir" else 1, e["name"].lower()))

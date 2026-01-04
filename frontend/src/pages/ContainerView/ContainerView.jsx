@@ -13,82 +13,74 @@ import {
 } from "recharts";
 import { containerCache } from "../../utils/cache";
 
-  export default function ContainerView() {
-    const { id } = useParams(); 
-    const location = useLocation();
-    const [activeTab, setActiveTab] = useState("details");
-    const containerName = location.state?.name || "";
-    const [stats, setStats] = useState(null);
-    const [statsLoading, setStatsLoading] = useState(true);
-    const [statsError, setStatsError] = useState("");
-    const [isStopping, setIsStopping] = useState(false);
+export default function ContainerView() {
+  const { id } = useParams(); 
+  const location = useLocation();
+  const containerName = location.state?.name || "";
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState("");
+  const [isStopping, setIsStopping] = useState(false);
+  const [cpuHistory, setCpuHistory] = useState([]);
+  const [filePathInput, setFilePathInput] = useState("");
+  const [fileTabs, setFileTabs] = useState([]);
+  const [logs, setLogs] = useState([]);                     // array of { msg: string, seenAt: number }
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState("");
+  const statsIntervalRef = useRef(null);
+  const logsIntervalRef = useRef(null);
+  const logsBoxRef = useRef(null);
+  const [activeTab, setActiveTab] = useState("details");    //Which top-level tab is active: "details" | "logs" | "files" | "file:/path/to/file"
+  const [processes, setProcesses] = useState([]);
+  const [processesLoading, setProcessesLoading] = useState(false);
+  const [processesError, setProcessesError] = useState("");
+  const [sortField, setSortField] = useState("");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [fsPath, setFsPath] = useState("/");            // Current directory path being shown in the Files tab
+  const [fsEntries, setFsEntries] = useState([]);       // Directory listing (files + folders) for the current fsPath
+  const [fsLoading, setFsLoading] = useState(false);    // Loading flag while fetching a directory listing
+  const [fsError, setFsError] = useState("");           // Error message when failing to fetch a directory listing
+  const fsCacheRef = useRef(new Map());                 // Cache of directory listings by path to reduce repeat API calls
 
-    const [cpuHistory, setCpuHistory] = useState([]);
+  const cpuTrendMax = useMemo(() => {
+    if (!cpuHistory.length) return 100;
 
-    const [filePathInput, setFilePathInput] = useState("");
-    const [fileTabs, setFileTabs] = useState([]);
-    // each tab: { key, name, path, content, loading, error, truncated }
+    const max = cpuHistory.reduce((m, p) => {
+      const n = Number(p.value);
+      return Number.isFinite(n) ? Math.max(m, n) : m;
+    }, 0);
 
+    const padded = max + Math.max(2, max * 0.03);
+    return Math.min(100, Math.ceil(padded));
+  }, [cpuHistory]);
 
-    const cpuTrendMax = useMemo(() => {
-      if (!cpuHistory.length) return 100;
+  const stampLogs = (prevStamped, nextRaw) => {
+    const pool = new Map();
+    for (const item of prevStamped) {
+      const arr = pool.get(item.msg) || [];
+      arr.push(item.seenAt);
+      pool.set(item.msg, arr);
+    }
+    const now = Date.now();
+    return (nextRaw || []).map((msg, i) => {
+      const arr = pool.get(msg);
+      const reused = arr && arr.length ? arr.shift() : null;
+      if (arr && arr.length === 0) pool.delete(msg);
+      return { msg, seenAt: reused ?? (now + i) };
+    });
+  };
 
-      const max = cpuHistory.reduce((m, p) => {
-        const n = Number(p.value);
-        return Number.isFinite(n) ? Math.max(m, n) : m;
-      }, 0);
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
 
-      const padded = max + Math.max(2, max * 0.03);
-      return Math.min(100, Math.ceil(padded));
-    }, [cpuHistory]);
-
-    const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
-    const [logsLoading, setLogsLoading] = useState(false);
-    const [logsError, setLogsError] = useState("");
-
-    const statsIntervalRef = useRef(null);
-    const logsIntervalRef = useRef(null);
-    const logsBoxRef = useRef(null);
-
-    const stampLogs = (prevStamped, nextRaw) => {
-      const pool = new Map();
-      for (const item of prevStamped) {
-        const arr = pool.get(item.msg) || [];
-        arr.push(item.seenAt);
-        pool.set(item.msg, arr);
-      }
-
-      const now = Date.now();
-      return (nextRaw || []).map((msg, i) => {
-        const arr = pool.get(msg);
-        const reused = arr && arr.length ? arr.shift() : null;
-        if (arr && arr.length === 0) pool.delete(msg);
-        return { msg, seenAt: reused ?? (now + i) };
-      });
-    };
-
-    const [processes, setProcesses] = useState([]);
-    const [processesLoading, setProcessesLoading] = useState(false);
-    const [processesError, setProcessesError] = useState("");
-    const [sortField, setSortField] = useState("");
-    const [sortOrder, setSortOrder] = useState("asc");
-
-    const [fsPath, setFsPath] = useState("/");
-    const [fsEntries, setFsEntries] = useState([]);
-    const [fsLoading, setFsLoading] = useState(false);
-    const [fsError, setFsError] = useState("");
-    const fsCacheRef = useRef(new Map()); // path -> entries
-
-
-    const handleSort = (field) => {
-      if (sortField === field) {
-        setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-      } else {
-        setSortField(field);
-        setSortOrder("asc");
-      }
-    };
-    const fetchDir = async (path) => {
+  // Files tab: fetch and display the directory listing for `path` (uses an in-memory cache to avoid repeat API calls)
+  const fetchDir = async (path) => {
     setFsPath(path);
     setFsError("");
 
@@ -115,7 +107,7 @@ import { containerCache } from "../../utils/cache";
     }
   };
 
-
+  // Opens a file inside the container by path and displays it in a new or existing file tab
   const openFilePath = async () => {
     const path = filePathInput.trim();
     if (!path) return;
@@ -441,8 +433,6 @@ import { containerCache } from "../../utils/cache";
     setFsEntries([]);
     setFsError("");
   }, [id]);
-
-
 
   const memPercent = (() => {
     if (!stats || !stats.mem_usage_bytes || !stats.mem_limit_bytes) return 0;
@@ -861,40 +851,32 @@ import { containerCache } from "../../utils/cache";
 
           {!fsLoading && !fsError && (
             <div className="border rounded-lg overflow-hidden">
-              <div className="grid grid-cols-[1fr_120px_220px] bg-gray-50 text-xs text-gray-600 px-3 py-2">
-                <div>Name</div>
-                <div className="text-right">Size</div>
-                <div className="text-right">Modified</div>
-              </div>
+            <div className="grid grid-cols-1 bg-gray-50 text-xs text-gray-600 px-3 py-2">
+              <div>Name</div>
+            </div>
 
               {fsEntries.length === 0 ? (
                 <div className="px-3 py-3 text-sm text-gray-500">Empty directory</div>
               ) : (
                 fsEntries.map((e) => (
-                  <button
-                    key={e.path}
-                    className="w-full text-left grid grid-cols-[1fr_120px_220px] px-3 py-2 text-sm hover:bg-gray-50 border-t"
-                    onClick={() => {
-                      if (e.type === "dir") {
-                        fetchDir(e.path);
-                      } else if (e.type === "file") {
-                        setFilePathInput(e.path);
-                        setTimeout(openFilePath, 0);
-                      }
-                    }}
-                    title={e.path}
-                  >
-                    <div className="font-mono truncate">
-                      {e.type === "dir" ? "[DIR] " : "[FILE] "}
-                      {e.name}
-                    </div>
-                    <div className="text-right text-gray-600">
-                      {e.type === "file" ? e.size : "—"}
-                    </div>
-                    <div className="text-right text-gray-600 truncate">
-                      {e.mtime || "—"}
-                    </div>
-                  </button>
+                <button
+                  key={e.path}
+                  className="w-full text-left grid grid-cols-1 px-3 py-2 text-sm hover:bg-gray-50 border-t"
+                  onClick={() => {
+                    if (e.type === "dir") {
+                      fetchDir(e.path);
+                    } else if (e.type === "file") {
+                      setFilePathInput(e.path);
+                      setTimeout(openFilePath, 0);
+                    }
+                  }}
+                  title={e.path}
+                >
+                  <div className="font-mono truncate">
+                    {e.type === "dir" ? "[DIR] " : "[FILE] "}
+                    {e.name}
+                  </div>
+                </button>
                 ))
               )}
             </div>
