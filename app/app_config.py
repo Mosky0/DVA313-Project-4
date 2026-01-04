@@ -1,3 +1,5 @@
+#CONFIGURATION FILE FOR THE APPLICATION
+
 """
 Configuration settings for the application.
 This file contains all configurable parameters and their default values.
