@@ -9,7 +9,7 @@ from app.utils.containerCache import container_stats_cache, container_stats_lock
 from app.utils.dockerClient import DockerClientProvider
 
 #config file functions
-from app.config import (
+from app.app_config import (
     get_log_tail_lines,
     get_max_processes,
     get_stop_timeout,
@@ -578,7 +578,7 @@ def stop_container(container_id):
 @metrics_bp.route("/config")
 def get_configuration():
     """Return current configuration (safe values)"""
-    from app.config import config
+    from app.app_config import config
     return jsonify({
         "metrics": {
             "ring_buffer_size": config.RING_BUFFER_SIZE,

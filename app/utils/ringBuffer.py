@@ -1,7 +1,7 @@
 import threading
 from datetime import datetime
 from collections import defaultdict, deque
-from app.config import get_ring_buffer_size
+from app.app_config import get_ring_buffer_size
 
 class RingBuffer:
     def __init__(self, size):

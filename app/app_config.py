@@ -5,7 +5,7 @@ This file contains all configurable parameters and their default values.
 import os 
 from dataclasses import dataclass
 from typing import List
-from flask import Config 
+from flask import Config
 
 
 class MetricsConfig: 
