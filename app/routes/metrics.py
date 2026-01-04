@@ -8,6 +8,16 @@ from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLates
 from app.utils.containerCache import container_stats_cache, container_stats_lock
 from app.utils.dockerClient import DockerClientProvider
 
+#config file functions
+from app.config import (
+    get_ring_buffer_size,
+    get_log_tail_lines,
+    get_max_processes,
+    get_stop_timeout,
+    is_stop_allowed,
+    is_feature_enabled,
+)
+
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
 docker_client = DockerClientProvider.get_docker_client()
 logger = InitializeLogger(__name__)
@@ -323,7 +333,8 @@ def container_logs(container_id):
     try:
         container = docker_client.containers.get(container_id)
 
-        raw = container.logs(tail=50).decode("utf-8", errors="replace")
+        tail_lines = get_log_tail_lines()
+        raw = container.logs(tail=tail_lines).decode("utf-8", errors="replace")
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
         lines = [f"[{now}] {line}" for line in raw.splitlines()]

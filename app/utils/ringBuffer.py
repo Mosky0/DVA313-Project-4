@@ -1,10 +1,11 @@
 import threading
 from datetime import datetime
 from collections import defaultdict, deque
+from app.config import get_ring_buffer_size
 
 class RingBuffer:
     def __init__(self, size):
-        self.size = size
+        self.size = size or get_ring_buffer_size()
         self.buffer = deque(maxlen=size)
         self.lock = threading.Lock()
 
