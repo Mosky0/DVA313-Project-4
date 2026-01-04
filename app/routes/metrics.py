@@ -15,7 +15,6 @@ from app.config import (
     get_stop_timeout,
     get_bytes_precision,
     get_cpu_precision,
-    get_memory_precision,
     is_stop_allowed,
     is_feature_enabled,
 )
@@ -44,7 +43,7 @@ def compute_container_usage(container):
         container.reload()
         status = container.status
 
-        cpu_precission = get_cpu_precision()
+        cpu_precision = get_cpu_precision()
 
         cpu_percent = 0.0
         mem_usage = 0
@@ -362,7 +361,7 @@ def container_logs(container_id):
             {
                 "container": container.name,
                 "logs": lines,
-                "tail_lines": tal_lines,
+                "tail_lines": tail_lines,
             }
         ), 200
     except NotFound as e:
@@ -408,7 +407,7 @@ def container_processes(container_id):
 
         try:
             result = container.exec_run(
-                cmd="ps aux --sort=-%cpu | head -n {max_processes + 1}",
+                cmd=f"ps aux --sort=-%cpu | head -n {max_processes + 1}",
                 stdout=True,
                 stderr=True
             )
@@ -561,14 +560,6 @@ def stop_container(container_id):
             "status": "stopped",
             "timeout_used": timeout
         }), 200
-
-    @metrics_bp.route("/config")
-    def get_configuration():
-        """Return current configuration (safe values)"""
-        from app.config import config
-        return jsonify({
-
-        }), 200
     
     except NotFound as e:
         logger.error(f"Container not found: {container_id} : {e}")
@@ -583,3 +574,34 @@ def stop_container(container_id):
             "error": "Unexpected error occurred",
             "message": "Failed to stop container",
         }), 500
+
+@metrics_bp.route("/config")
+def get_configuration():
+    """Return current configuration (safe values)"""
+    from app.config import config
+    return jsonify({
+        "metrics": {
+            "ring_buffer_size": config.RING_BUFFER_SIZE,
+            "system_buffer_size": config.SYSTEM_METRICS_BUFFER_SIZE,
+            "log_tail_lines": config.LOG_TAIL_LINES,
+            "max_processes": config.MAX_PROCESSES,
+        },
+        "docker": {
+            "stop_timeout": config.CONTAINER_STOP_TIMEOUT,
+        },
+        "formatting": {
+            "bytes_precision": config.BYTES_PRECISION,
+            "cpu_precision": config.CPU_PRECISION,
+            "memory_precision": config.MEMORY_PRECISION,
+        },
+        "features": {
+            "system_metrics": config.ENABLE_SYSTEM_METRICS,
+            "process_monitoring": config.ENABLE_PROCESS_MONITORING, 
+            "log_monitoring": config.ENABLE_LOG_MONITORING, 
+        },
+        "security": {
+                "allow_stop": config.ALLOW_CONTAINER_STOP,
+                "allow_start": config.ALLOW_CONTAINER_START, 
+                "allow_restart": config.ALLOW_CONTAINER_RESTART, 
+        }
+        }), 200
