@@ -10,10 +10,12 @@ from app.utils.dockerClient import DockerClientProvider
 
 #config file functions
 from app.config import (
-    get_ring_buffer_size,
     get_log_tail_lines,
     get_max_processes,
     get_stop_timeout,
+    get_bytes_precision,
+    get_cpu_precision,
+    get_memory_precision,
     is_stop_allowed,
     is_feature_enabled,
 )
@@ -25,9 +27,10 @@ logger = InitializeLogger(__name__)
 def format_bytes(num: int) -> str:
     """Format bytes into a human-readable string."""
     try:
+        precision = get_bytes_precision()
         for unit in ["B", "KB", "MB", "GB", "TB"]:
             if num < 1024:
-                return f"{num:.2f} {unit}"
+                return f"{num:.{precision}f} {unit}"
             num /= 1024
         return f"{num:.2f} TB"
     except Exception as e:
@@ -40,6 +43,8 @@ def compute_container_usage(container):
     try:
         container.reload()
         status = container.status
+
+        cpu_precission = get_cpu_precision()
 
         cpu_percent = 0.0
         mem_usage = 0
@@ -87,7 +92,7 @@ def compute_container_usage(container):
 
         return {
             "status": status,
-            "cpu_percent": round(cpu_percent, 2),
+            "cpu_percent": round(cpu_percent, cpu_precision),
             "mem_usage_bytes": mem_usage,
             "mem_limit_bytes": mem_limit,
             "mem_usage": format_bytes(mem_usage),
@@ -116,6 +121,13 @@ def fast_container_stats():
 @metrics_bp.route("/system")
 def system_metrics():
     """Return host-level system metrics (CPU, memory, load, uptime, processes)."""
+    # Check if the feature for collecting metrics is enabled
+    if not is_feature_enabled('system_metrics'):
+        return jsonify({
+            "error": "Feature disabled",
+            "message": "System metrics are disabled in configuration"
+        }), 403
+    
     try:
         try:
             load1, load5, load15 = psutil.getloadavg()
@@ -330,6 +342,13 @@ def latest_system_metrics():
 @metrics_bp.route("/containers/<container_id>/logs")
 def container_logs(container_id):
     """Return the last 50 log lines for a container."""
+    # Check if feature is enabled
+    if not is_feature_enabled('log_monitoring'):
+        return jsonify({
+            "error": "Feature disabled",
+            "message": "Log monitoring is disabled in configuration"
+        }), 403
+
     try:
         container = docker_client.containers.get(container_id)
 
@@ -343,6 +362,7 @@ def container_logs(container_id):
             {
                 "container": container.name,
                 "logs": lines,
+                "tail_lines": tal_lines,
             }
         ), 200
     except NotFound as e:
@@ -362,6 +382,13 @@ def container_logs(container_id):
 @metrics_bp.route("/containers/<container_id>/processes")
 def container_processes(container_id):
     """Return the list of processes running inside a container (exec_run with fallback to docker top)"""
+    #Check if feature is enabled
+    if not is_feature_enabled('process_monitoring'):
+        return jsonify({
+            "error": "Feature disabled",
+            "message": "Process monitoring is disabled in configuration"
+        }), 403
+    
     try:
         container = docker_client.containers.get(container_id)
         container.reload()
@@ -374,12 +401,14 @@ def container_processes(container_id):
                 "message": "Container is not currently running."
             }), 200
 
+        max_processes  = get_max_processes()
+
         processes = []
         source = "exec_run"
 
         try:
             result = container.exec_run(
-                cmd="ps aux --sort=-%cpu | head -101",
+                cmd="ps aux --sort=-%cpu | head -n {max_processes + 1}",
                 stdout=True,
                 stderr=True
             )
@@ -480,7 +509,7 @@ def container_processes(container_id):
         processes.sort(key=lambda p: p["cpu_percent"], reverse=True)
 
         # Limit to top 100 processes to prevent memory issues
-        processes = processes[:100]
+        processes = processes[:max_processes]
 
         return jsonify({
             "container": container.name,
@@ -488,6 +517,7 @@ def container_processes(container_id):
             "status": container.status,
             "source": source,
             "total_count": len(processes),
+            "max_processes": max_processes, 
             "processes": processes,
         }), 200
         
@@ -503,6 +533,13 @@ def container_processes(container_id):
 @metrics_bp.route("/containers/<container_id>/stop", methods=["POST"])
 def stop_container(container_id):
     """Stop a running container."""
+    # Check if operation is allowed
+    if not is_stop_allowed():
+        return jsonify({
+            "error": "Operation not allowed",
+            "message": "Container stop operation is disabled in configuration"
+        }), 403
+
     try:
         container = docker_client.containers.get(container_id)
         container.reload()
@@ -514,13 +551,23 @@ def stop_container(container_id):
                 "status": container.status
             }), 200
 
-        container.stop()
+        timeout = get_stop_timeout()
+        container.stop(timeout=timeout)
 
         return jsonify({
             "message": "Container stopped successfully.",
             "container_id": container_id,
             "name": container.name,
-            "status": "stopped"
+            "status": "stopped",
+            "timeout_used": timeout
+        }), 200
+
+    @metrics_bp.route("/config")
+    def get_configuration():
+        """Return current configuration (safe values)"""
+        from app.config import config
+        return jsonify({
+
         }), 200
     
     except NotFound as e:
