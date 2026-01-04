@@ -514,7 +514,7 @@ useEffect(() => {
    
     if (!hasSelectedCores) return [];
    
-    let referenceData, startIndex;
+    let referenceData;
     if (selectedCores.systemCpu && systemCpuHistory.length > 0) {
       referenceData = systemCpuHistory;
     } else if (coreKeys.length > 0) {
@@ -525,7 +525,7 @@ useEffect(() => {
     }
    
     const maxLength = Math.min(referenceData.length, 50);
-    startIndex = referenceData.length - maxLength;
+    const startIndex = Math.max(0, referenceData.length - maxLength);
    
     return referenceData.slice(startIndex).map((entry, idx) => {
       const point = {
@@ -906,35 +906,56 @@ useEffect(() => {
           </div>
           <div className="grow min-h-[100px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={cpuTrendSeries}>
+              <LineChart 
+                data={cpuTrendSeries}
+                margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                syncId="cpu-trend"
+              >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="time" stroke="#888" tick={{ fontSize: 12 }} />
+                <XAxis 
+                  dataKey="time" 
+                  stroke="#888" 
+                  tick={{ fontSize: 10 }}
+                  interval="equidistantPreserveStart"
+                  minTickGap={10}
+                  scale="auto"
+                  domain={['auto', 'auto']}
+                />
                 <YAxis
                   stroke="#888"
                   domain={[0, cpuTrendMax]}
                   tick={{ fontSize: 12 }}
                   width={30}
                 />
-                <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
+                <Tooltip 
+                  formatter={(value, name) => [`${Math.round(value)}%`, name]}
+                  contentStyle={{ fontSize: '12px' }}
+                />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
                 {selectedCores.systemCpu && (
                   <Line
-                    type="monotone"
+                    type="step"
                     dataKey="System CPU"
                     stroke="#ff6b6b"
                     dot={false}
                     strokeWidth={2}
+                    isAnimationActive={false}
+                    animationDuration={0}
+                    animationEasing="linear"
                   />
                 )}
                 {system?.cpu?.per_core?.map((_, coreIdx) =>
                   selectedCores[coreIdx] ? (
                     <Line
                       key={coreIdx}
-                      type="monotone"
+                      type="step"
                       dataKey={`Core ${coreIdx}`}
                       stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
                       dot={false}
                       strokeWidth={2}
+                      isAnimationActive={false}
+                      animationDuration={0}
+                      animationEasing="linear"
                     />
                   ) : null
                 )}
