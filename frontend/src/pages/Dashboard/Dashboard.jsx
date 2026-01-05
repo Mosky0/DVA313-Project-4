@@ -110,6 +110,49 @@ const Dashboard = React.memo(() => {
 
   const wasDisconnected = useRef(false);
 
+  const [fixedWindowData, setFixedWindowData] = useState(
+    Array(50).fill().map((_, index) => ({
+      index: index,
+      SystemCPU: 0,
+      Core0: 0,
+      Core1: 0,
+      Core2: 0,
+      Core3: 0,
+      Core4: 0,
+      Core5: 0
+    }))
+  );
+
+  useEffect(() => {
+    if (!systemCpuHistory.length && !Object.keys(cpuCoreHistory).length) return;
+
+    setFixedWindowData(prevData => {
+      const newData = [...prevData];
+      
+      for (let i = 0; i < 49; i++) {
+        newData[i] = { ...newData[i + 1], index: i };
+      }
+      
+      const newPoint = { index: 49 };
+      
+      if (systemCpuHistory.length > 0) {
+        const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
+        newPoint.SystemCPU = latestSystem?.value || 0;
+      }
+      
+      Object.keys(cpuCoreHistory).forEach(coreIdx => {
+        const coreData = cpuCoreHistory[coreIdx];
+        if (coreData && coreData.length > 0) {
+          const latestCore = coreData[coreData.length - 1];
+          newPoint[`Core${coreIdx}`] = latestCore?.value || 0;
+        }
+      });
+      
+      newData[49] = newPoint;
+      return newData;
+    });
+  }, [systemCpuHistory, cpuCoreHistory]);
+
   // Define default layout
   const defaultLayout = [
     { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false },
@@ -507,55 +550,9 @@ useEffect(() => {
   }
 }, [backendStatus]);
 
-   const cpuTrendSeries = useMemo(() => {
-    const hasSelectedCores = Object.keys(selectedCores).some(key => selectedCores[key]);
-    const coreKeys = Object.keys(cpuCoreHistory).filter(coreIdx => selectedCores[coreIdx]);
-   
-    if (!hasSelectedCores) return [];
-   
-    let referenceData, startIndex;
-    if (selectedCores.systemCpu && systemCpuHistory.length > 0) {
-      referenceData = systemCpuHistory;
-    } else if (coreKeys.length > 0) {
-      const refCore = coreKeys[0];
-      referenceData = cpuCoreHistory[refCore];
-    } else {
-      return [];
-    }
-   
-    const maxLength = Math.min(referenceData.length, 50);
-    startIndex = referenceData.length - maxLength;
-   
-    return referenceData.slice(startIndex).map((entry, idx) => {
-      const point = {
-        time: entry.timestamp
-          ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          : `Point ${idx}`
-      };
-     
-      if (selectedCores.systemCpu && systemCpuHistory.length > 0) {
-        const systemDataIndex = startIndex + idx;
-        if (systemDataIndex >= 0 && systemDataIndex < systemCpuHistory.length) {
-          point['System CPU'] = systemCpuHistory[systemDataIndex].value;
-        } else {
-          point['System CPU'] = 0;
-        }
-      }
-     
-      coreKeys.forEach(coreIdx => {
-        const coreData = cpuCoreHistory[coreIdx];
-        const dataIndex = startIndex + idx;
-       
-        if (dataIndex >= 0 && dataIndex < coreData.length) {
-          point[`Core ${coreIdx}`] = coreData[dataIndex].value;
-        } else {
-          point[`Core ${coreIdx}`] = 0;
-        }
-      });
-     
-      return point;
-    });
-  }, [selectedCores, cpuCoreHistory, systemCpuHistory]);
+  const cpuTrendSeries = useMemo(() => {
+    return fixedWindowData;
+  }, [fixedWindowData]);
 
   const cpuTrendMax = useMemo(() => {
     if (!cpuTrendSeries.length) return 100;
@@ -907,22 +904,35 @@ useEffect(() => {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={cpuTrendSeries}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="time" stroke="#888" tick={{ fontSize: 12 }} />
+                <XAxis 
+                  dataKey="index" 
+                  stroke="#888" 
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={() => ''} 
+                  axisLine={false}
+                />
                 <YAxis
                   stroke="#888"
                   domain={[0, cpuTrendMax]}
                   tick={{ fontSize: 12 }}
                   width={30}
                 />
-                <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
+                <Tooltip 
+                  formatter={(value, name) => [`${Math.round(value)}%`, name]}
+                  labelFormatter={(index) => `Point ${index}`}
+                />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
                 {selectedCores.systemCpu && (
                   <Line
                     type="monotone"
-                    dataKey="System CPU"
+                    dataKey="SystemCPU"
+                    name="System CPU"
                     stroke="#ff6b6b"
                     dot={false}
                     strokeWidth={2}
+                    isAnimationActive={true}
+                    animationDuration={300}
+                    animationEasing="ease-in-out"
                   />
                 )}
                 {system?.cpu?.per_core?.map((_, coreIdx) =>
@@ -930,10 +940,14 @@ useEffect(() => {
                     <Line
                       key={coreIdx}
                       type="monotone"
-                      dataKey={`Core ${coreIdx}`}
+                      dataKey={`Core${coreIdx}`}
+                      name={`Core ${coreIdx}`}
                       stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
                       dot={false}
                       strokeWidth={2}
+                      isAnimationActive={true}
+                      animationDuration={300}
+                      animationEasing="ease-in-out"
                     />
                   ) : null
                 )}
