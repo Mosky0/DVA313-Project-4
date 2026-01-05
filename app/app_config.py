@@ -3,23 +3,37 @@
 """
 Configuration settings for the application.
 This file contains all configurable parameters and their default values.
+These can be modified manually
 """
 import os 
 from dataclasses import dataclass
 from typing import List
 from flask import Config
 
+"""COMMANDS FOR THE TERMINAL: 
+1. To check the current configuration of the application:
+    curl http://localhost:5000/api/config 
+
+    
+"""
 
 class MetricsConfig: 
     """Configuration for metrics collection"""
 
-    # Size of the ring buffer for storing container metrics
-    RING_BUFFER_SIZE = int(os.getenv('RING_BUFFER_SIZE', 100))
+    # Size of the ring buffer for storing container metrics (cpu usage/memory usage)
+    # example: CPU History [45%, 50%, 55%, ...] up to 100 by default
+    # example: Memory History [200MB, 250MB, 300MB, ...] up to 100 by default
+    RING_BUFFER_SIZE = int(os.getenv('RING_BUFFER_SIZE', 100)) 
+    # command to check container metrics history:
+    # curl http://localhost:5000/api/containers/CONTAINER_ID/metrics/history
 
-    # Size of the ring buffer for storing system metrics
+    # Size of the ring buffer for storing system metrics (total cpu/cpu per core/system memory)
+    # example: System CPU History [30%, 35%, 40%, ...] up to 200 by default and so on
     SYSTEM_METRICS_BUFFER_SIZE = int(os.getenv('SYSTEM_BUFFER_SIZE', 200))
+    # command to check system metrics history:
+    # curl http://localhost:5000/api/system/metrics/history
 
-    # Number of lines of logs to tail for monitoring
+    # Number of lines of logs to tail for monitoring 
     LOG_TAIL_LINES = int(os.getenv('LOG_TAIL_LINES', 50))
 
     # Maximum number of processes of the containers to tail 
