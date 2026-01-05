@@ -123,17 +123,32 @@ const Dashboard = React.memo(() => {
     }))
   );
 
+  const [currentPosition, setCurrentPosition] = useState(0);
+  const [isWindowFull, setIsWindowFull] = useState(false);
+
   useEffect(() => {
-    if (!systemCpuHistory.length && !Object.keys(cpuCoreHistory).length) return;
+    if (!systemCpuHistory.length && !Object.keys(cpuCoreHistory).length) {
+      setFixedWindowData(
+        Array(50).fill().map((_, index) => ({
+          index: index,
+          SystemCPU: 0,
+          Core0: 0,
+          Core1: 0,
+          Core2: 0,
+          Core3: 0,
+          Core4: 0,
+          Core5: 0
+        }))
+      );
+      setCurrentPosition(0);
+      setIsWindowFull(false);
+      return;
+    }
 
     setFixedWindowData(prevData => {
       const newData = [...prevData];
       
-      for (let i = 0; i < 49; i++) {
-        newData[i] = { ...newData[i + 1], index: i };
-      }
-      
-      const newPoint = { index: 49 };
+      const newPoint = { index: isWindowFull ? 49 : currentPosition };
       
       if (systemCpuHistory.length > 0) {
         const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
@@ -148,7 +163,21 @@ const Dashboard = React.memo(() => {
         }
       });
       
-      newData[49] = newPoint;
+      if (isWindowFull) {
+        for (let i = 0; i < 49; i++) {
+          newData[i] = { ...newData[i + 1], index: i };
+        }
+        newData[49] = newPoint;
+      } else {
+        newData[currentPosition] = newPoint;
+        
+        if (currentPosition >= 49) {
+          setIsWindowFull(true);
+        } else {
+          setCurrentPosition(prev => prev + 1);
+        }
+      }
+      
       return newData;
     });
   }, [systemCpuHistory, cpuCoreHistory]);
