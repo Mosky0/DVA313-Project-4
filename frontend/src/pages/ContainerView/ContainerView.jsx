@@ -54,14 +54,6 @@ export default function ContainerView() {
     return Math.min(100, Math.ceil(padded));
   }, [cpuHistory]);
 
-  const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [logsError, setLogsError] = useState("");
-
-  const statsIntervalRef = useRef(null);
-  const logsIntervalRef = useRef(null);
-  const logsBoxRef = useRef(null);
-
   function formatUptime(startedAt) {
   if (!startedAt) return "N/A";
 
@@ -193,7 +185,7 @@ export default function ContainerView() {
   // --------- STOP A CONTAINER ----------
   const stopContainer = async () => {
     setIsStopping(true);
-    const TOAST_ID = "stop-container";
+    
 
     try {
       const response = await fetch(`/api/containers/${id}/stop`, {
@@ -205,10 +197,7 @@ export default function ContainerView() {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success("Container stopped successfully.", {
-          toastId: TOAST_ID,
-          autoClose: 2000,
-        });
+       
         setStats((prevStats) => ({
           ...prevStats,
           status: "exited",
