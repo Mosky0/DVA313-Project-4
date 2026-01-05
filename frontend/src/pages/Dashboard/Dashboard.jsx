@@ -113,6 +113,7 @@ const Dashboard = React.memo(() => {
   const [fixedWindowData, setFixedWindowData] = useState(
     Array(50).fill().map((_, index) => ({
       index: index,
+      time: null,
       SystemCPU: 0,
       Core0: 0,
       Core1: 0,
@@ -131,6 +132,7 @@ const Dashboard = React.memo(() => {
       setFixedWindowData(
         Array(50).fill().map((_, index) => ({
           index: index,
+          time: null,
           SystemCPU: 0,
           Core0: 0,
           Core1: 0,
@@ -148,13 +150,21 @@ const Dashboard = React.memo(() => {
     setFixedWindowData(prevData => {
       const newData = [...prevData];
       
-      const newPoint = { index: isWindowFull ? 49 : currentPosition };
+      const newPoint = { 
+        index: isWindowFull ? 49 : currentPosition,
+        time: null
+      };
       
       if (system?.cpu?.total_percent !== undefined) {
         newPoint.SystemCPU = system.cpu.total_percent;
+        if (systemCpuHistory.length > 0) {
+          const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
+          newPoint.time = latestSystem?.timestamp || null;
+        }
       } else if (systemCpuHistory.length > 0) {
         const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
         newPoint.SystemCPU = latestSystem?.value || 0;
+        newPoint.time = latestSystem?.timestamp || null;
       }
       
       Object.keys(cpuCoreHistory).forEach(coreIdx => {
@@ -162,6 +172,10 @@ const Dashboard = React.memo(() => {
         if (coreData && coreData.length > 0) {
           const latestCore = coreData[coreData.length - 1];
           newPoint[`Core${coreIdx}`] = latestCore?.value || 0;
+          
+          if (!newPoint.time && latestCore?.timestamp) {
+            newPoint.time = latestCore.timestamp;
+          }
         }
       });
       
@@ -933,14 +947,23 @@ useEffect(() => {
           </div>
           <div className="grow min-h-[100px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={cpuTrendSeries}>
+              <LineChart data={fixedWindowData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis 
                   dataKey="index" 
                   stroke="#888" 
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={() => ''} 
-                  axisLine={false}
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(index) => {
+                    const dataPoint = cpuTrendSeries[index];
+                    if (dataPoint && dataPoint.time) {
+                      return new Date(dataPoint.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    }
+                    return '';
+                  }}
+                  axisLine={true}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
                 />
                 <YAxis
                   stroke="#888"
@@ -950,7 +973,13 @@ useEffect(() => {
                 />
                 <Tooltip 
                   formatter={(value, name) => [`${Math.round(value)}%`, name]}
-                  labelFormatter={(index) => `Point ${index}`}
+                  labelFormatter={(index) => {
+                    const dataPoint = cpuTrendSeries[index];
+                    if (dataPoint && dataPoint.time) {
+                      return `Time: ${new Date(dataPoint.time).toLocaleTimeString()}`;
+                    }
+                    return `Point ${index}`;
+                  }}
                 />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
                 {selectedCores.systemCpu && (
