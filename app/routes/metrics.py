@@ -601,7 +601,5 @@ def get_configuration():
         },
         "security": {
                 "allow_stop": config.ALLOW_CONTAINER_STOP,
-                "allow_start": config.ALLOW_CONTAINER_START, 
-                "allow_restart": config.ALLOW_CONTAINER_RESTART, 
         }
         }), 200

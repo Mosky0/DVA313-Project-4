@@ -59,10 +59,6 @@ class MetricsConfig:
 
     # Allow operations on the containers
     ALLOW_CONTAINER_STOP = os.getenv('ALLOW_STOP', 'true').lower() == 'true'
-    ALLOW_CONTAINER_START = os.getenv('ALLOW_START', 'false').lower() == 'true'
-    ALLOW_CONTAINER_RESTART = os.getenv('ALLOW_RESTART', 'false').lower() == 'true'
-
-
 
 # Global configuration instance
 config = MetricsConfig()
