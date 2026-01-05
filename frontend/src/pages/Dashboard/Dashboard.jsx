@@ -484,7 +484,7 @@ const Dashboard = React.memo(() => {
     };
 
     fetchSystemData();
-    const iv = setInterval(fetchSystemData, 10000); 
+    const iv = setInterval(fetchSystemData, 3000); 
 
     return () => {
       mounted = false;
@@ -562,7 +562,7 @@ const Dashboard = React.memo(() => {
 
    checkBackend();
 
-  const interval = setInterval(checkBackend, 10000);
+  const interval = setInterval(checkBackend, 3000);
 
   return () => {
     mounted = false;
@@ -959,9 +959,7 @@ useEffect(() => {
                     stroke="#ff6b6b"
                     dot={false}
                     strokeWidth={2}
-                    isAnimationActive={true}
-                    animationDuration={300}
-                    animationEasing="ease-in-out"
+                    isAnimationActive={false}
                   />
                 )}
                 {system?.cpu?.per_core?.map((_, coreIdx) =>
@@ -974,9 +972,7 @@ useEffect(() => {
                       stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
                       dot={false}
                       strokeWidth={2}
-                      isAnimationActive={true}
-                      animationDuration={300}
-                      animationEasing="ease-in-out"
+                      isAnimationActive={false}
                     />
                   ) : null
                 )}
