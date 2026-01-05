@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { useParams, useLocation } from "react-router-dom";
 import { FaDocker, FaChevronUp, FaChevronDown } from "react-icons/fa";
@@ -11,7 +11,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { API_BASE_URL } from "../../config";
 import { containerCache } from "../../utils/cache";
 
 export default function ContainerView() {
@@ -26,6 +25,18 @@ export default function ContainerView() {
 
   const [cpuHistory, setCpuHistory] = useState([]);
 
+  const cpuTrendMax = useMemo(() => {
+    if (!cpuHistory.length) return 100;
+
+    const max = cpuHistory.reduce((m, p) => {
+      const n = Number(p.value);
+      return Number.isFinite(n) ? Math.max(m, n) : m;
+    }, 0);
+
+    const padded = max + Math.max(2, max * 0.03);
+    return Math.min(100, Math.ceil(padded));
+  }, [cpuHistory]);
+
   const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState("");
@@ -33,6 +44,30 @@ export default function ContainerView() {
   const statsIntervalRef = useRef(null);
   const logsIntervalRef = useRef(null);
   const logsBoxRef = useRef(null);
+
+  function formatUptime(startedAt) {
+  if (!startedAt) return "N/A";
+
+  const start = new Date(startedAt).getTime();
+  const now = Date.now();
+
+  if (isNaN(start) || now < start) return "N/A";
+
+  let seconds = Math.floor((now - start) / 1000);
+
+  const days = Math.floor(seconds / 86400);
+  seconds %= 86400;
+  const hours = Math.floor(seconds / 3600);
+  seconds %= 3600;
+  const minutes = Math.floor(seconds / 60);
+  seconds %= 60;
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
 
   const stampLogs = (prevStamped, nextRaw) => {
     const pool = new Map();
@@ -72,7 +107,7 @@ export default function ContainerView() {
     const TOAST_ID = "stop-container";
 
     try {
-      const response = await fetch(`${API_BASE_URL}/containers/${id}/stop`, {
+      const response = await fetch(`/api/containers/${id}/stop`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -126,7 +161,7 @@ export default function ContainerView() {
       }
 
       try {
-        const res = await fetch(`${API_BASE_URL}/containers/${id}/stats`, {
+        const res = await fetch(`/api/containers/${id}/stats`, {
           signal: controller.signal,
         });
 
@@ -208,7 +243,7 @@ export default function ContainerView() {
         return;
       }
 
-      fetch(`${API_BASE_URL}/containers/${id}/metrics/history`)
+      fetch(`/api/containers/${id}/metrics/history`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch stored metrics");
           return res.json();
@@ -256,7 +291,7 @@ export default function ContainerView() {
         setLogsLoading(true);
         setLogsError("");
 
-        const res = await fetch(`${API_BASE_URL}/containers/${id}/logs`, {
+        const res = await fetch(`/api/containers/${id}/logs`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error("Failed to fetch logs");
@@ -301,7 +336,7 @@ export default function ContainerView() {
       setProcessesLoading(true);
       setProcessesError("");
 
-      fetch(`${API_BASE_URL}/containers/${id}/processes`)
+      fetch(`/api/containers/${id}/processes`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch processes");
           return res.json();
@@ -318,6 +353,8 @@ export default function ContainerView() {
           setProcesses([]);
         });
     };
+  
+
 
     // Initial fetch
     fetchProcesses();
@@ -391,8 +428,13 @@ export default function ContainerView() {
             >
               {statusLabel}
             </span>
+{/*uptime */}
+  <span className="text-gray-500 text-sm">
+  Uptime: {stats?.started_at ? formatUptime(stats.started_at) : (stats?.uptime ?? "N/A")}
+</span>
 
-            <span className="text-gray-500 text-sm">Uptime: N/A</span>
+
+
           </div>
         </div>
 
@@ -502,7 +544,7 @@ export default function ContainerView() {
                     />
                     <YAxis
                       stroke="#555"
-                      domain={[0, 100]}
+                      domain={[0, cpuTrendMax]}
                       tickFormatter={(value) => `${value}%`}
                     />
                     <Tooltip />

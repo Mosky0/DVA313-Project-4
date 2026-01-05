@@ -1,4 +1,5 @@
 import datetime
+from app.utils.containerUptime import container_uptime_info
 import time
 from app.utils.loggerConfig import InitializeLogger
 from docker.errors import NotFound
@@ -186,6 +187,43 @@ def list_containers():
             "message": "Failed to list containers",
         }), 500
 
+
+@metrics_bp.route("/containers/with-stats")
+def list_containers_with_stats():
+    """
+    List all Docker containers with their latest stats (CPU and memory).
+    """
+    try:
+        logger.info("Listing all containers with stats")
+        containers = docker_client.containers.list(all=True)
+        result = []
+        for c in containers:
+            c.reload()
+            if c.status == "running":
+                metrics = getLatestContainerMetrics(c.short_id)
+                cpu = f"{metrics.get('cpu_percent', 0):.2f}%" if metrics else "-"
+                mem = metrics.get('mem_usage', '-') if metrics else "-"
+            else:
+                cpu = "-"
+                mem = "-"
+            result.append(
+                {
+                    "id": c.short_id,
+                    "name": c.name,
+                    "status": c.status,
+                    "image": c.image.tags,
+                    "cpu": cpu,
+                    "mem": mem,
+                }
+            )
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error listing containers with stats: {e}")
+        return jsonify({
+            "error": "Unexpected error occurred",
+            "message": "Failed to list containers with stats",
+        }), 500
+
 # ---------------- PER-CONTAINER STATS ----------------
 @metrics_bp.route("/containers/<container_id>/stats")
 def container_stats(container_id):
@@ -193,6 +231,8 @@ def container_stats(container_id):
     try:
         container = docker_client.containers.get(container_id)
         usage = compute_container_usage(container)
+        uptime_info = container_uptime_info(container)
+
 
         stats_data = {
             "id": container_id,
@@ -203,6 +243,10 @@ def container_stats(container_id):
             "mem_limit": usage["mem_limit"],
             "mem_usage_bytes": usage["mem_usage_bytes"],
             "mem_limit_bytes": usage["mem_limit_bytes"],
+             "uptime": uptime_info["uptime"],
+    "uptime_seconds": uptime_info["uptime_seconds"],
+    "started_at": uptime_info.get("started_at"),
+    "finished_at": uptime_info.get("finished_at"),
         }
 
         # Add to ring buffer
@@ -445,11 +489,11 @@ def container_processes(container_id):
             "processes": processes,
         }), 200
         
-    except docker.errors.NotFound as e:
+    except NotFound as e:
         return jsonify({"error": "Container not found",
                         "container_id": container_id}), 410
     
-    except docker.errors.Exception as e:
+    except Exception as e:
         return jsonify({"error": "Unexpected error occurred",
                         "message": "Failed to retrieve container processes."}), 500
     
