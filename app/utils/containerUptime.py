@@ -26,7 +26,7 @@ def container_uptime_info(container):
         seconds = max(0, int((now - started_at).total_seconds()))
         return {
             "uptime_seconds": seconds,
-            "uptime": str(timedelta(seconds=seconds)),   # ✅ fixed
+            "uptime": str(timedelta(seconds=seconds)),  
             "started_at": started_at.isoformat(),
         }
 
@@ -35,7 +35,7 @@ def container_uptime_info(container):
         seconds = max(0, int((finished_at - started_at).total_seconds()))
         return {
             "uptime_seconds": seconds,
-            "uptime": str(timedelta(seconds=seconds)),   # ✅ fixed
+            "uptime": str(timedelta(seconds=seconds)),   
             "started_at": started_at.isoformat(),
             "finished_at": finished_at.isoformat(),
         }
