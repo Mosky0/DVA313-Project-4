@@ -12,12 +12,11 @@ socketio = SocketIO(cors_allowed_origins="*")
 def create_app():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     dist_dir = os.path.join(base_dir, "..", "frontend", "dist")
-    assets_dir = os.path.join(dist_dir, "assets")
 
     app = Flask(
         __name__,
-        static_folder=assets_dir,
-        static_url_path="/assets"
+        static_folder=dist_dir,
+        static_url_path=""
     )
 
     app.config.from_object("config.BaseConfig")

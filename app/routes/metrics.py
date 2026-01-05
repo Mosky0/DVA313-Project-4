@@ -1,4 +1,5 @@
 import datetime
+from app.utils.containerUptime import container_uptime_info
 import time
 from app.utils.loggerConfig import InitializeLogger
 from docker.errors import NotFound
@@ -229,6 +230,8 @@ def container_stats(container_id):
     try:
         container = docker_client.containers.get(container_id)
         usage = compute_container_usage(container)
+        uptime_info = container_uptime_info(container)
+
 
         stats_data = {
             "id": container_id,
@@ -239,6 +242,10 @@ def container_stats(container_id):
             "mem_limit": usage["mem_limit"],
             "mem_usage_bytes": usage["mem_usage_bytes"],
             "mem_limit_bytes": usage["mem_limit_bytes"],
+             "uptime": uptime_info["uptime"],
+    "uptime_seconds": uptime_info["uptime_seconds"],
+    "started_at": uptime_info.get("started_at"),
+    "finished_at": uptime_info.get("finished_at"),
         }
 
         # Add to ring buffer
