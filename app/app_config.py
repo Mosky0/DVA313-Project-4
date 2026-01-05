@@ -41,7 +41,7 @@ class MetricsConfig:
     """Docker operations"""
 
     # Timeout after stopping a container (seconds)
-    CONTAINER_STOP_TIMEOUT = int(os.getenv('CONTAINER_STOP_TIMEOUT', 10))
+    CONTAINER_STOP_TIMEOUT = int(os.getenv('CONTAINER_STOP_TIMEOUT', 5))
 
     # Allow operations on the containers
     ALLOW_CONTAINER_STOP = os.getenv('ALLOW_STOP', 'true').lower() == 'true'
