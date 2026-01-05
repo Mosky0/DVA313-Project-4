@@ -54,13 +54,6 @@ export default function ContainerView() {
     return Math.min(100, Math.ceil(padded));
   }, [cpuHistory]);
 
-  const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [logsError, setLogsError] = useState("");
-
-  const statsIntervalRef = useRef(null);
-  const logsIntervalRef = useRef(null);
-  const logsBoxRef = useRef(null);
 
   function formatUptime(startedAt) {
   if (!startedAt) return "N/A";

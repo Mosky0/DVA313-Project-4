@@ -10,6 +10,8 @@ services:
       - "8000:8000"
     environment:
       - FLASK_ENV=development
+      - DOCKER_HOST=tcp://host.docker.internal:2376
+      - DOCKER_TLS_VERIFY=0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["gunicorn","--config", "gunicorn_config.py", "app:create_app()"]
