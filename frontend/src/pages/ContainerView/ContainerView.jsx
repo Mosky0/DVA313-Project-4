@@ -45,6 +45,30 @@ export default function ContainerView() {
   const logsIntervalRef = useRef(null);
   const logsBoxRef = useRef(null);
 
+  function formatUptime(startedAt) {
+  if (!startedAt) return "N/A";
+
+  const start = new Date(startedAt).getTime();
+  const now = Date.now();
+
+  if (isNaN(start) || now < start) return "N/A";
+
+  let seconds = Math.floor((now - start) / 1000);
+
+  const days = Math.floor(seconds / 86400);
+  seconds %= 86400;
+  const hours = Math.floor(seconds / 3600);
+  seconds %= 3600;
+  const minutes = Math.floor(seconds / 60);
+  seconds %= 60;
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+
   const stampLogs = (prevStamped, nextRaw) => {
     const pool = new Map();
     for (const item of prevStamped) {
@@ -329,6 +353,8 @@ export default function ContainerView() {
           setProcesses([]);
         });
     };
+  
+
 
     // Initial fetch
     fetchProcesses();
@@ -402,8 +428,13 @@ export default function ContainerView() {
             >
               {statusLabel}
             </span>
+{/*uptime */}
+  <span className="text-gray-500 text-sm">
+  Uptime: {stats?.started_at ? formatUptime(stats.started_at) : (stats?.uptime ?? "N/A")}
+</span>
 
-            <span className="text-gray-500 text-sm">Uptime: N/A</span>
+
+
           </div>
         </div>
 
