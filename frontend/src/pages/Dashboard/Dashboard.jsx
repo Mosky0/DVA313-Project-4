@@ -150,7 +150,9 @@ const Dashboard = React.memo(() => {
       
       const newPoint = { index: isWindowFull ? 49 : currentPosition };
       
-      if (systemCpuHistory.length > 0) {
+      if (system?.cpu?.total_percent !== undefined) {
+        newPoint.SystemCPU = system.cpu.total_percent;
+      } else if (systemCpuHistory.length > 0) {
         const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
         newPoint.SystemCPU = latestSystem?.value || 0;
       }
