@@ -13,11 +13,7 @@ def create_app():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     dist_dir = os.path.join(base_dir, "..", "frontend", "dist")
 
-    app = Flask(
-        __name__,
-        static_folder=dist_dir,
-        static_url_path=""
-    )
+    app = Flask(__name__, static_folder=None)
 
     app.config.from_object("config.BaseConfig")
 
@@ -38,7 +34,18 @@ def create_app():
     @app.route("/", defaults={"path": ""})
     @app.route("/<path:path>")
     def frontend(path):
+        # Do not serve index.html for API routes
+        if path.startswith("api/"):
+            return {"error": "Not Found"}, 404
+
+        # If the requested file exists in the build output, serve it (e.g., /assets/*)
+        requested_path = os.path.join(dist_dir, path)
+        if path and os.path.exists(requested_path):
+            return send_from_directory(dist_dir, path)
+
+        # Otherwise, serve the SPA entrypoint
         return send_from_directory(dist_dir, "index.html")
+
 
 
     return app
