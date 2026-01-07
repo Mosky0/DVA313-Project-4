@@ -1,6 +1,13 @@
 import threading
 from datetime import datetime
+import time
+import os
 from collections import defaultdict, deque
+
+if hasattr(time, 'tzset'):
+    
+    os.environ['TZ'] = ''
+    time.tzset()
 
 class RingBuffer:
     def __init__(self, size):
@@ -72,8 +79,10 @@ def addContainerMetrics(container_id, metrics):
         initializeContainerBuffers(container_id)
     
     if 'cpu_percent' in metrics and isinstance(metrics['cpu_percent'], (int, float)):
+        local_time = time.localtime()
+        timestamp_str = f"{local_time.tm_hour:02d}:{local_time.tm_min:02d}:{local_time.tm_sec:02d}"
         containerMetricsStorage[container_id]['cpuBuffer'].push({
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp_str,
             'value': metrics['cpu_percent']
         })
 
@@ -83,8 +92,10 @@ def addContainerMetrics(container_id, metrics):
         
         memory_percent = (metrics['mem_usage_bytes'] / metrics['mem_limit_bytes']) * 100 if metrics['mem_limit_bytes'] > 0 else 0
         
+        local_time = time.localtime()
+        timestamp_str = f"{local_time.tm_hour:02d}:{local_time.tm_min:02d}:{local_time.tm_sec:02d}"
         containerMetricsStorage[container_id]['memoryBuffer'].push({
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp_str,
             'value': memory_percent,
             'usageBytes': metrics['mem_usage_bytes'],
             'limitBytes': metrics['mem_limit_bytes']
@@ -96,15 +107,19 @@ def addSystemMetrics(system_data):
     initializeSystemBuffers(len(cpu_per_core))
     
     if isinstance(cpu_total, (int, float)):
+        local_time = time.localtime()
+        timestamp_str = f"{local_time.tm_hour:02d}:{local_time.tm_min:02d}:{local_time.tm_sec:02d}"
         systemMetricsStorage['systemCpuBuffer'].push({
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp_str,
             'value': cpu_total
         })
     
     for core_idx, core_value in enumerate(cpu_per_core):
         if isinstance(core_value, (int, float)):
+            local_time = time.localtime()
+            timestamp_str = f"{local_time.tm_hour:02d}:{local_time.tm_min:02d}:{local_time.tm_sec:02d}"
             systemMetricsStorage['cpuCoreBuffers'][core_idx].push({
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': timestamp_str,
                 'value': core_value
             })
     
@@ -114,8 +129,10 @@ def addSystemMetrics(system_data):
     
     if isinstance(used_bytes, (int, float)) and isinstance(limit_bytes, (int, float)):
         memory_percent = (used_bytes / limit_bytes) * 100 if limit_bytes > 0 else 0
+        local_time = time.localtime()
+        timestamp_str = f"{local_time.tm_hour:02d}:{local_time.tm_min:02d}:{local_time.tm_sec:02d}"
         systemMetricsStorage['memoryBuffer'].push({
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp_str,
             'value': memory_percent,
             'usageBytes': used_bytes,
             'limitBytes': limit_bytes

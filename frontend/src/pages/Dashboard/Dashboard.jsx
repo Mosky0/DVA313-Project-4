@@ -159,7 +159,7 @@ const Dashboard = React.memo(() => {
         newPoint.SystemCPU = system.cpu.total_percent;
         if (systemCpuHistory.length > 0) {
           const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
-          newPoint.time = latestSystem?.timestamp || null;
+          newPoint.time = latestSystem?.timestamp;
         }
       } else if (systemCpuHistory.length > 0) {
         const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
@@ -631,9 +631,7 @@ useEffect(() => {
     const startIndex = systemMemoryHistory.length - maxLength;
    
     return systemMemoryHistory.slice(startIndex).map((entry, idx) => ({
-      time: entry.timestamp
-        ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        : `t-${maxLength - idx - 1}`,
+      time: entry.timestamp || `t-${maxLength - idx - 1}`,
       value: entry.value
     }));
   }, [systemMemoryHistory]);
@@ -956,7 +954,7 @@ useEffect(() => {
                   tickFormatter={(index) => {
                     const dataPoint = cpuTrendSeries[index];
                     if (dataPoint && dataPoint.time) {
-                      return new Date(dataPoint.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      return dataPoint.time;
                     }
                     return '';
                   }}
@@ -976,7 +974,7 @@ useEffect(() => {
                   labelFormatter={(index) => {
                     const dataPoint = cpuTrendSeries[index];
                     if (dataPoint && dataPoint.time) {
-                      return `Time: ${new Date(dataPoint.time).toLocaleTimeString()}`;
+                      return `Time: ${dataPoint.time}`;
                     }
                     return `Point ${index}`;
                   }}
