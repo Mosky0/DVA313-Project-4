@@ -7,7 +7,7 @@ class TestLogsIntegration:
 
     def test_real_container_logs(self, integration_test_container, client):
         """Test retrieving logs from a real running container."""
-        time.sleep(3)  #Wait for some logs
+        time.sleep(3)  # Wait for some logs
         
         container_id = integration_test_container.short_id
         response = client.get(f'/api/containers/{container_id}/logs')
@@ -19,7 +19,7 @@ class TestLogsIntegration:
         assert 'logs' in data
         assert len(data['logs']) > 0
         
-        #Verify log contains our test message
+        # Verify log contains our test message
         logs_text = ' '.join(data['logs'])
         assert 'Test log' in logs_text
 

@@ -71,7 +71,7 @@ class TestContainerLogs:
     def test_get_logs_unicode_handling(self, client, mock_container):
         """Test proper handling of unicode characters in logs."""
         with patch("app.routes.metrics.docker_client") as mock_docker:
-            unicode_logs = "Hello 世界\nTest émoji 🚀\n".encode('utf-8')
+            unicode_logs = "Hello 世界\nTest emoji 🚀\n".encode('utf-8')
             mock_docker.containers.get.return_value = mock_container
             mock_container.logs.return_value = unicode_logs
             
