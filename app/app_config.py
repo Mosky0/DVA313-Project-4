@@ -3,7 +3,7 @@
 """
 Configuration settings for the application.
 This file contains all configurable parameters and their default values.
-These can be modified manually
+These can be modified manually or by the commands provided below
 """
 import os 
 from dataclasses import dataclass
@@ -12,9 +12,17 @@ from flask import Config
 
 """COMMANDS FOR THE TERMINAL: 
 1. To check the current configuration of the application:
-    curl http://localhost:5000/api/config 
+curl http://localhost:8000/api/config
 
-    
+2. Running the application with Docker by default configuration:
+docker rm -f monitoring_app
+docker build -t monitoring-app:0.0.1 .
+docker run -d --name monitoring_app -p 8000:8000 -v //var/run/docker.sock:/var/run/docker.sock monitoring-app:0.0.1
+
+3. To run the application with custom configuration values, use the following command:
+docker rm -f monitoring_app
+docker build -t monitoring-app:0.0.1 .
+docker run -d --name monitoring_app -p 8000:8000 -v //var/run/docker.sock:/var/run/docker.sock -e RING_BUFFER_SIZE=150  -e ALLOW_STOP=false monitoring-app:0.0.1    
 """
 
 class MetricsConfig: 
