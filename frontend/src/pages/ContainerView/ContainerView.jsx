@@ -14,7 +14,7 @@ import {
 import { containerCache } from "../../utils/cache";
 
 export default function ContainerView() {
-  const { id } = useParams(); 
+  const { id } = useParams();
   const location = useLocation();
   const containerName = location.state?.name || "";
   const [stats, setStats] = useState(null);
@@ -24,23 +24,23 @@ export default function ContainerView() {
   const [cpuHistory, setCpuHistory] = useState([]);
   const [filePathInput, setFilePathInput] = useState("");
   const [fileTabs, setFileTabs] = useState([]);
-  const [logs, setLogs] = useState([]);                     // array of { msg: string, seenAt: number }
+  const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState("");
   const statsIntervalRef = useRef(null);
   const logsIntervalRef = useRef(null);
   const logsBoxRef = useRef(null);
-  const [activeTab, setActiveTab] = useState("details");    //Which top-level tab is active: "details" | "logs" | "files" | "file:/path/to/file"
+  const [activeTab, setActiveTab] = useState("details"); //Which top-level tab is active: "details" | "logs" | "files" | "file:/path/to/file"
   const [processes, setProcesses] = useState([]);
   const [processesLoading, setProcessesLoading] = useState(false);
   const [processesError, setProcessesError] = useState("");
   const [sortField, setSortField] = useState("");
   const [sortOrder, setSortOrder] = useState("asc");
-  const [fsPath, setFsPath] = useState("/");            // Current directory path being shown in the Files tab
-  const [fsEntries, setFsEntries] = useState([]);       // Directory listing (files + folders) for the current fsPath
-  const [fsLoading, setFsLoading] = useState(false);    // Loading flag while fetching a directory listing
-  const [fsError, setFsError] = useState("");           // Error message when failing to fetch a directory listing
-  const fsCacheRef = useRef(new Map());                 // Cache of directory listings by path to reduce repeat API calls
+  const [fsPath, setFsPath] = useState("/"); // Current directory path being shown in the Files tab
+  const [fsEntries, setFsEntries] = useState([]); // Directory listing (files + folders) for the current fsPath
+  const [fsLoading, setFsLoading] = useState(false); // Loading flag while fetching a directory listing
+  const [fsError, setFsError] = useState(""); // Error message when failing to fetch a directory listing
+  const fsCacheRef = useRef(new Map()); // Cache of directory listings by path to reduce repeat API calls
 
   const cpuTrendMax = useMemo(() => {
     if (!cpuHistory.length) return 100;
@@ -55,28 +55,27 @@ export default function ContainerView() {
   }, [cpuHistory]);
 
   function formatUptime(startedAt) {
-  if (!startedAt) return "N/A";
+    if (!startedAt) return "N/A";
 
-  const start = new Date(startedAt).getTime();
-  const now = Date.now();
+    const start = new Date(startedAt).getTime();
+    const now = Date.now();
 
-  if (isNaN(start) || now < start) return "N/A";
+    if (isNaN(start) || now < start) return "N/A";
 
-  let seconds = Math.floor((now - start) / 1000);
+    let seconds = Math.floor((now - start) / 1000);
 
-  const days = Math.floor(seconds / 86400);
-  seconds %= 86400;
-  const hours = Math.floor(seconds / 3600);
-  seconds %= 3600;
-  const minutes = Math.floor(seconds / 60);
-  seconds %= 60;
+    const days = Math.floor(seconds / 86400);
+    seconds %= 86400;
+    const hours = Math.floor(seconds / 3600);
+    seconds %= 3600;
+    const minutes = Math.floor(seconds / 60);
+    seconds %= 60;
 
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
-
+    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
+  }
 
   const stampLogs = (prevStamped, nextRaw) => {
     const pool = new Map();
@@ -90,7 +89,7 @@ export default function ContainerView() {
       const arr = pool.get(msg);
       const reused = arr && arr.length ? arr.shift() : null;
       if (arr && arr.length === 0) pool.delete(msg);
-      return { msg, seenAt: reused ?? (now + i) };
+      return { msg, seenAt: reused ?? now + i };
     });
   };
 
@@ -116,7 +115,9 @@ export default function ContainerView() {
 
     try {
       setFsLoading(true);
-      const res = await fetch(`/api/containers/${id}/fs?path=${encodeURIComponent(path)}`);
+      const res = await fetch(
+        `/api/containers/${id}/fs?path=${encodeURIComponent(path)}`
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || "Failed to list directory");
 
@@ -144,7 +145,15 @@ export default function ContainerView() {
       if (prev.some((t) => t.key === key)) return prev;
       return [
         ...prev,
-        { key, name, path, content: "", loading: true, error: "", truncated: false },
+        {
+          key,
+          name,
+          path,
+          content: "",
+          loading: true,
+          error: "",
+          truncated: false,
+        },
       ];
     });
 
@@ -185,7 +194,6 @@ export default function ContainerView() {
   // --------- STOP A CONTAINER ----------
   const stopContainer = async () => {
     setIsStopping(true);
-    
 
     try {
       const response = await fetch(`/api/containers/${id}/stop`, {
@@ -197,13 +205,12 @@ export default function ContainerView() {
       const data = await response.json();
 
       if (response.ok) {
-       
         setStats((prevStats) => ({
           ...prevStats,
           status: "exited",
           cpu_percent: 0,
         }));
-        setProcesses([]); 
+        setProcesses([]);
       } else {
         toast.error(data.message || "Failed to stop container.", {
           toastId: TOAST_ID,
@@ -431,8 +438,6 @@ export default function ContainerView() {
           setProcesses([]);
         });
     };
-  
-
 
     // Initial fetch
     fetchProcesses();
@@ -481,7 +486,9 @@ export default function ContainerView() {
             <FaDocker className="text-6xl text-blue-600 animate-pulse" />
             <div className="absolute inset-0 w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mt-2"></div>
           </div>
-          <div className="text-lg font-semibold text-gray-700">Loading container data…</div>
+          <div className="text-lg font-semibold text-gray-700">
+            Loading container data…
+          </div>
           <div className="text-sm text-gray-500">Fetching latest data</div>
         </div>
       </div>
@@ -520,13 +527,13 @@ export default function ContainerView() {
             >
               {statusLabel}
             </span>
-{/*uptime */}
-  <span className="text-gray-500 text-sm">
-  Uptime: {stats?.started_at ? formatUptime(stats.started_at) : (stats?.uptime ?? "N/A")}
-</span>
-
-
-
+            {/*uptime */}
+            <span className="text-gray-500 text-sm">
+              Uptime:{" "}
+              {stats?.started_at
+                ? formatUptime(stats.started_at)
+                : stats?.uptime ?? "N/A"}
+            </span>
           </div>
         </div>
 
@@ -579,7 +586,6 @@ export default function ContainerView() {
         >
           Files
         </button>
-
 
         {fileTabs.map((t) => (
           <button
@@ -697,9 +703,17 @@ export default function ContainerView() {
                   const valA = a[sortField];
                   const valB = b[sortField];
                   if (typeof valA === "string" && typeof valB === "string") {
-                    return sortOrder === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    return sortOrder === "asc"
+                      ? valA.localeCompare(valB)
+                      : valB.localeCompare(valA);
                   }
-                  return sortOrder === "asc" ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+                  return sortOrder === "asc"
+                    ? valA > valB
+                      ? 1
+                      : -1
+                    : valA < valB
+                    ? 1
+                    : -1;
                 });
 
                 return (
@@ -712,7 +726,7 @@ export default function ContainerView() {
                             { key: "cpu_percent", label: "CPU%" },
                             { key: "mem_percent", label: "MEM%" },
                             { key: "state", label: "State" },
-                            { key: "time", label: "CPU Time" },
+                            { key: "time", label: "CPU Time (Total)" },
                             { key: "command", label: "Command" },
                           ].map((col) => (
                             <th
@@ -722,13 +736,12 @@ export default function ContainerView() {
                             >
                               <div className="flex items-center gap-1">
                                 {col.label}
-                                {sortField === col.key && (
-                                  sortOrder === "asc" ? (
+                                {sortField === col.key &&
+                                  (sortOrder === "asc" ? (
                                     <FaChevronUp className="text-xs" />
                                   ) : (
                                     <FaChevronDown className="text-xs" />
-                                  )
-                                )}
+                                  ))}
                               </div>
                             </th>
                           ))}
@@ -781,14 +794,19 @@ export default function ContainerView() {
 
       {/* LOGS TAB */}
       {activeTab === "logs" && (
-        <div ref={logsBoxRef} className="bg-black text-green-400 p-4 rounded-xl shadow h-[500px] overflow-y-auto font-mono text-sm">
+        <div
+          ref={logsBoxRef}
+          className="bg-black text-green-400 p-4 rounded-xl shadow h-[500px] overflow-y-auto font-mono text-sm"
+        >
           {logsLoading && <p className="text-gray-400">Loading logs…</p>}
           {logsError && <p className="text-red-400">{logsError}</p>}
           {!logsLoading &&
             !logsError &&
             logs.map((item, i) => (
               <p key={i}>
-                <span className="text-gray-400">[{new Date(item.seenAt).toLocaleTimeString()}]</span>{" "}
+                <span className="text-gray-400">
+                  [{new Date(item.seenAt).toLocaleTimeString()}]
+                </span>{" "}
                 {item.msg}
               </p>
             ))}
@@ -801,46 +819,51 @@ export default function ContainerView() {
       )}
 
       {/* FILE TAB */}
-      {activeTab.startsWith("file:") && (() => {
-        const tab = fileTabs.find((t) => t.key === activeTab);
-        if (!tab) return null;
+      {activeTab.startsWith("file:") &&
+        (() => {
+          const tab = fileTabs.find((t) => t.key === activeTab);
+          if (!tab) return null;
 
-        return (
-          <div className="bg-white shadow rounded-xl p-6">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-gray-500 text-sm">File</p>
-                <p className="font-semibold">{tab.path}</p>
+          return (
+            <div className="bg-white shadow rounded-xl p-6">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-gray-500 text-sm">File</p>
+                  <p className="font-semibold">{tab.path}</p>
+                </div>
+
+                <button
+                  className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
+                  onClick={() => {
+                    setFileTabs((prev) =>
+                      prev.filter((x) => x.key !== tab.key)
+                    );
+                    setActiveTab("details");
+                  }}
+                >
+                  Close
+                </button>
               </div>
 
-              <button
-                className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
-                onClick={() => {
-                  setFileTabs((prev) => prev.filter((x) => x.key !== tab.key));
-                  setActiveTab("details");
-                }}
-              >
-                Close
-              </button>
+              {tab.loading && <p className="text-gray-500 text-sm">Loading…</p>}
+              {tab.error && <p className="text-red-500 text-sm">{tab.error}</p>}
+
+              {!tab.loading && !tab.error && (
+                <>
+                  {tab.truncated && (
+                    <p className="text-amber-600 text-sm mb-2">
+                      Preview truncated.
+                    </p>
+                  )}
+
+                  <pre className="bg-black text-green-200 rounded-xl p-4 overflow-auto max-h-[520px] text-sm font-mono">
+                    {tab.content || "(empty)"}
+                  </pre>
+                </>
+              )}
             </div>
-
-            {tab.loading && <p className="text-gray-500 text-sm">Loading…</p>}
-            {tab.error && <p className="text-red-500 text-sm">{tab.error}</p>}
-
-            {!tab.loading && !tab.error && (
-              <>
-                {tab.truncated && (
-                  <p className="text-amber-600 text-sm mb-2">Preview truncated.</p>
-                )}
-
-                <pre className="bg-black text-green-200 rounded-xl p-4 overflow-auto max-h-[520px] text-sm font-mono">
-                  {tab.content || "(empty)"}
-                </pre>
-              </>
-            )}
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {activeTab === "files" && (
         <div className="bg-white shadow rounded-xl p-6">
@@ -855,7 +878,9 @@ export default function ContainerView() {
                 className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
                 onClick={() => {
                   const parent =
-                    fsPath === "/" ? "/" : fsPath.replace(/\/[^/]+$/, "") || "/";
+                    fsPath === "/"
+                      ? "/"
+                      : fsPath.replace(/\/[^/]+$/, "") || "/";
                   fetchDir(parent);
                 }}
               >
@@ -879,39 +904,40 @@ export default function ContainerView() {
 
           {!fsLoading && !fsError && (
             <div className="border rounded-lg overflow-hidden">
-            <div className="grid grid-cols-1 bg-gray-50 text-xs text-gray-600 px-3 py-2">
-              <div>Name</div>
-            </div>
+              <div className="grid grid-cols-1 bg-gray-50 text-xs text-gray-600 px-3 py-2">
+                <div>Name</div>
+              </div>
 
               {fsEntries.length === 0 ? (
-                <div className="px-3 py-3 text-sm text-gray-500">Empty directory</div>
+                <div className="px-3 py-3 text-sm text-gray-500">
+                  Empty directory
+                </div>
               ) : (
                 fsEntries.map((e) => (
-                <button
-                  key={e.path}
-                  className="w-full text-left grid grid-cols-1 px-3 py-2 text-sm hover:bg-gray-50 border-t"
-                  onClick={() => {
-                    if (e.type === "dir") {
-                      fetchDir(e.path);
-                    } else if (e.type === "file") {
-                      setFilePathInput(e.path);
-                      setTimeout(openFilePath, 0);
-                    }
-                  }}
-                  title={e.path}
-                >
-                  <div className="font-mono truncate">
-                    {e.type === "dir" ? "[DIR] " : "[FILE] "}
-                    {e.name}
-                  </div>
-                </button>
+                  <button
+                    key={e.path}
+                    className="w-full text-left grid grid-cols-1 px-3 py-2 text-sm hover:bg-gray-50 border-t"
+                    onClick={() => {
+                      if (e.type === "dir") {
+                        fetchDir(e.path);
+                      } else if (e.type === "file") {
+                        setFilePathInput(e.path);
+                        setTimeout(openFilePath, 0);
+                      }
+                    }}
+                    title={e.path}
+                  >
+                    <div className="font-mono truncate">
+                      {e.type === "dir" ? "[DIR] " : "[FILE] "}
+                      {e.name}
+                    </div>
+                  </button>
                 ))
               )}
             </div>
           )}
         </div>
-      )}  
-
+      )}
 
       {/* OPEN FILE INPUT (FILES TAB ONLY) */}
       {activeTab === "files" && (
@@ -940,9 +966,6 @@ export default function ContainerView() {
           </div>
         </div>
       )}
-
-
-
     </div>
   );
 }
