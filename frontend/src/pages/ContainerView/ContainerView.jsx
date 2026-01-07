@@ -77,7 +77,8 @@ export default function ContainerView() {
     return `${seconds}s`;
   }
 
-  function formatCPUtime(timeStr) { //cpu time is the time a process has been actively using the cpu si
+  function formatCPUtime(timeStr) {
+    //cpu time is the time a process has been actively using the cpu since it started
     if (!timeStr || timeStr == "--") return "--";
 
     const parts = timeStr.split(/[-:]/);
@@ -103,7 +104,7 @@ export default function ContainerView() {
           }
           return `${hrs}h ${min}m ${sec}s`;
         }
-        return `${days}d ${hrs}h ${min}m`;  
+        return `${days}d ${hrs}h ${min}m`;
       }
       return timeStr;
     } catch {
