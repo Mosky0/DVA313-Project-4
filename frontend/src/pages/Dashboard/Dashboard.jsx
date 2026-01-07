@@ -728,18 +728,26 @@ useEffect(() => {
               type="checkbox"
               checked={visibleComponents[componentId]}
               onChange={() => {
-                setVisibleComponents(prev => ({
-                  ...prev,
-                  [componentId]: !prev[componentId]
-                }));
-                if (!visibleComponents[componentId]) {
-                  setLayout(prevLayout => prevLayout.filter(item => item.i !== componentId));
-                } else {
-                  const defaultItem = defaultLayout.find(item => item.i === componentId);
-                  if (defaultItem) {
-                    setLayout(prevLayout => [...prevLayout, defaultItem]);
-                  }
-                }
+                // Use functional updates to avoid stale state and ensure correct add/remove behavior
+                setVisibleComponents(prev => {
+                  const nextVisible = !prev[componentId];
+                  setLayout(prevLayout => {
+                    if (nextVisible) {
+                      // Restoring original size by re-adding the item's default layout
+                      const defaultItem = defaultLayout.find(item => item.i === componentId);
+                      if (!defaultItem) return prevLayout;
+                      const without = prevLayout.filter(item => item.i !== componentId);
+                      return [...without, { ...defaultItem }];
+                    } else {
+                      // Hiding: remove from layout
+                      return prevLayout.filter(item => item.i !== componentId);
+                    }
+                  });
+                  return {
+                    ...prev,
+                    [componentId]: nextVisible
+                  };
+                });
               }}
               className="w-4 h-4 cursor-pointer"
             />
