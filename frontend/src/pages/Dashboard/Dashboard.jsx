@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import ChartCard from "../../components/ui/ChartCard";
 import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
-import { API_BASE_URL } from "../../config";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid
 } from "recharts";
@@ -96,6 +95,17 @@ const Dashboard = React.memo(() => {
   const [backendStatus, setBackendStatus] = useState("connected");
   const [isEditMode, setIsEditMode] = useState(true);
   const [layout, setLayout] = useState([]);
+  const [visibleComponents, setVisibleComponents] = useState({
+    'load-card': true,
+    'cpu-card': true,
+    'memory-card': true,
+    'uptime-card': true,
+    'cpu-activity-chart': true,
+    'cpu-trend-chart': true,
+    'memory-trend-chart': true,
+    'alerts-panel': true,
+    'containers-table': true
+  });
   const [width, setWidth] = useState(window.innerWidth - 100);
   const [componentStates, setComponentStates] = useState({
     'load-card': 'minimized',
@@ -366,9 +376,9 @@ const Dashboard = React.memo(() => {
     const fetchSystemData = async () => {
       try {
         const [sysRes, historyRes, latestSysRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/system`),
-          fetch(`${API_BASE_URL}/system/metrics/history`),
-          fetch(`${API_BASE_URL}/system/metrics/latest`)
+          fetch(`/api/system`),
+          fetch(`/api/system/metrics/history`),
+          fetch(`/api/system/metrics/latest`)
         ]);
 
 
@@ -426,7 +436,7 @@ const Dashboard = React.memo(() => {
 
     const fetchAllContainerStats = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/containers/all/stats`, {
+        const res = await fetch(`/api/containers/all/stats`, {
           cache: "no-store",
         });
 
@@ -458,7 +468,7 @@ const Dashboard = React.memo(() => {
 
   const checkBackend = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/system`, {
+      const res = await fetch(`/api/system`, {
         cache: "no-store",
       });
 
@@ -710,6 +720,34 @@ useEffect(() => {
         </button>
       </div>
 
+      {/* Visibility Toggles */}
+      <div className="flex justify-start mb-4">
+        {Object.keys(visibleComponents).map(componentId => (
+          <div key={componentId} className="flex items-center mr-4">
+            <input
+              type="checkbox"
+              checked={visibleComponents[componentId]}
+              onChange={() => {
+                setVisibleComponents(prev => ({
+                  ...prev,
+                  [componentId]: !prev[componentId]
+                }));
+                if (!visibleComponents[componentId]) {
+                  setLayout(prevLayout => prevLayout.filter(item => item.i !== componentId));
+                } else {
+                  const defaultItem = defaultLayout.find(item => item.i === componentId);
+                  if (defaultItem) {
+                    setLayout(prevLayout => [...prevLayout, defaultItem]);
+                  }
+                }
+              }}
+              className="w-4 h-4 cursor-pointer"
+            />
+            <label className="ml-2 text-sm">{componentId}</label>
+          </div>
+        ))}
+      </div>
+      
       {/* Grid Layout */}
       <GridLayout
         className="layout"
@@ -724,6 +762,7 @@ useEffect(() => {
         containerPadding={[15, 15]}
       >
         {/* TOP CARDS */}
+        {visibleComponents['load-card'] && (
         <div key="load-card" className="bg-white rounded-xl p-4 shadow flex flex-col h-full">
           <div className="flex justify-between items-start">
             <div className="text-xs text-gray-500">Load (1/5/15)</div>
@@ -752,75 +791,90 @@ useEffect(() => {
           </div>
         </div>
 
+        )}
+        {visibleComponents["cpu-card"] && (
         <div key="cpu-card" className="bg-white rounded-xl p-4 shadow flex flex-col">
           <div className="flex justify-between items-start mb-2">
             <div className="text-xs text-gray-500">System CPU</div>
-            <button 
-              onClick={() => toggleComponentState('cpu-card')}
+            <button
+              onClick={() => toggleComponentState("cpu-card")}
               className="text-xs text-gray-500 hover:text-gray-700 z-10"
             >
-              {getButtonIcon('cpu-card')}
+              {getButtonIcon("cpu-card")}
             </button>
           </div>
+
           <div className="flex-grow flex items-center justify-center min-h-[40px]">
             {loadingSys || !system ? (
-              <CircleMetric value={0} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
+              <CircleMetric value={0} label="System CPU" size={componentStates["cpu-card"] === "minimized" ? 32 : 64} />
             ) : (
-              <CircleMetric value={Math.round(system?.cpu?.total_percent || 0)} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
+              <CircleMetric
+                value={Math.round(system?.cpu?.total_percent || 0)}
+                label="System CPU"
+                size={componentStates["cpu-card"] === "minimized" ? 32 : 64}
+              />
             )}
           </div>
         </div>
+      )}
 
-        <div key="memory-card" className="bg-white rounded-xl p-4 shadow flex flex-col h-full">
-          <div className="flex justify-between items-start">
-            <div className="text-xs text-gray-500">Memory</div>
-            <button 
-              onClick={() => toggleComponentState('memory-card')}
-              className="text-xs text-gray-500 hover:text-gray-700 z-10"
-            >
-              {getButtonIcon('memory-card')}
-            </button>
-          </div>
-          <div className="flex-grow flex flex-col justify-center min-h-[40px]">
-            {loadingSys || !system ? (
-              <div className="mt-2 text-sm font-semibold text-gray-400">—</div>
-            ) : (
-              <div className="mt-2 text-sm font-semibold">{memPct}%</div>
-            )}
-            <div className="mt-3">
-              <div className="bg-gray-200 h-2 rounded overflow-hidden">
-                <div 
-                  className="h-2 bg-[#2496ED]" 
-                  style={{ width: `${loadingSys || !system ? 0 : memPct}%` }} 
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        {visibleComponents["memory-card"] && (
+  <div key="memory-card" className="bg-white rounded-xl p-4 shadow flex flex-col h-full">
+    <div className="flex justify-between items-start">
+      <div className="text-xs text-gray-500">Memory</div>
+      <button
+        onClick={() => toggleComponentState("memory-card")}
+        className="text-xs text-gray-500 hover:text-gray-700 z-10"
+      >
+        {getButtonIcon("memory-card")}
+      </button>
+    </div>
 
-        <div key="uptime-card" className="bg-white rounded-xl p-4 shadow flex flex-col h-full">
-          <div className="flex justify-between items-start">
-            <div className="text-xs text-gray-500">Uptime</div>
-            <button 
-              onClick={() => toggleComponentState('uptime-card')}
-              className="text-xs text-gray-500 hover:text-gray-700 z-10"
-            >
-              {getButtonIcon('uptime-card')}
-            </button>
-          </div>
-          <div className="flex-grow flex flex-col justify-center min-h-[40px]">
-            {loadingSys || !system ? (
-              <div className="mt-2 text-lg font-semibold text-gray-400">Loading...</div>
-            ) : (
-              <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
-            )}
-            <div className="text-xs text-gray-400 mt-1">Host</div>
-          </div>
+    <div className="flex-grow flex flex-col justify-center min-h-[40px]">
+      {loadingSys || !system ? (
+        <div className="mt-2 text-sm font-semibold text-gray-400">—</div>
+      ) : (
+        <div className="mt-2 text-sm font-semibold">{memPct}%</div>
+      )}
+
+      <div className="mt-3">
+        <div className="bg-gray-200 h-2 rounded overflow-hidden">
+          <div className="h-2 bg-[#2496ED]" style={{ width: `${loadingSys || !system ? 0 : memPct}%` }} />
         </div>
+      </div>
+    </div>
+  </div>
+)}
+
+
+        {visibleComponents["uptime-card"] && (
+  <div key="uptime-card" className="bg-white rounded-xl p-4 shadow flex flex-col h-full">
+    <div className="flex justify-between items-start">
+      <div className="text-xs text-gray-500">Uptime</div>
+      <button
+        onClick={() => toggleComponentState("uptime-card")}
+        className="text-xs text-gray-500 hover:text-gray-700 z-10"
+      >
+        {getButtonIcon("uptime-card")}
+      </button>
+    </div>
+
+    <div className="flex-grow flex flex-col justify-center min-h-[40px]">
+      {loadingSys || !system ? (
+        <div className="mt-2 text-lg font-semibold text-gray-400">Loading...</div>
+      ) : (
+        <div className="mt-2 text-lg font-semibold">{system.uptime}</div>
+      )}
+      <div className="text-xs text-gray-400 mt-1">Host</div>
+    </div>
+  </div>
+)}
+
 
 
       {/* CPU ACTIVITY (PER CORE) */}
-      <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
+      {visibleComponents['cpu-activity-chart'] && (
+          <div key="cpu-activity-chart" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
         <div className="flex justify-between items-start mb-3">
           <div className="text-sm font-medium">CPU Activity (per core)</div>
           <button 
@@ -885,11 +939,11 @@ useEffect(() => {
           )}
         </div>
       </div>
-
+    )}
       {/* CPU TREND */}
-          
-        <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
 
+        {visibleComponents['cpu-trend-chart'] && (
+  <div key="cpu-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium">CPU trend (selected cores)</div>
             <div className="flex items-center gap-2">
@@ -942,44 +996,46 @@ useEffect(() => {
             </ResponsiveContainer>
           </div>
         </div>
+      )}
 
 
       {/* Memory trend */}
-      <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
-        <div className="flex justify-between items-start mb-2">
-          <div className="text-sm font-medium">System Memory trend</div>
-          <button 
-            onClick={() => toggleComponentState('memory-trend-chart')}
-            className="text-xs text-gray-500 hover:text-gray-700"
-          >
-            {getButtonIcon('memory-trend-chart')}
-          </button>
-        </div>
-        {loadingSys || !system ? (
-          <div className="flex items-center justify-center grow text-gray-500">
-            Loading memory trend data...
-          </div>
-        ) : (
-          <ChartCard
-            title="System Memory trend"
-            data={memoryTrendSeries}
-            type="area"
-            showTitle={false}
-          />
-        )}
-      </div>
+      {visibleComponents["memory-trend-chart"] && (
+  <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
+    <div className="flex justify-between items-start mb-2">
+      <div className="text-sm font-medium">System Memory trend</div>
+      <button
+        onClick={() => toggleComponentState("memory-trend-chart")}
+        className="text-xs text-gray-500 hover:text-gray-700"
+      >
+        {getButtonIcon("memory-trend-chart")}
+      </button>
+    </div>
 
-      {/* Alerts panel */}
+    {loadingSys || !system ? (
+      <div className="flex items-center justify-center grow text-gray-500">
+        Loading memory trend data...
+      </div>
+    ) : (
+      <ChartCard title="System Memory trend" data={memoryTrendSeries} type="area" showTitle={false} />
+    )}
+  </div>
+)}
+
+
+    {/* Alerts panel */}
+    {visibleComponents["alerts-panel"] && (
       <div key="alerts-panel" className="bg-white rounded-2xl shadow p-4 flex flex-col h-full">
         <div className="flex justify-between items-start mb-3">
           <div className="text-sm font-medium">Alerts & Recent Events</div>
-          <button 
-            onClick={() => toggleComponentState('alerts-panel')}
+          <button
+            onClick={() => toggleComponentState("alerts-panel")}
             className="text-xs text-gray-500 hover:text-gray-700"
           >
-            {getButtonIcon('alerts-panel')}
+            {getButtonIcon("alerts-panel")}
           </button>
         </div>
+
         <div className="flex-grow overflow-y-auto min-h-[50px] space-y-2 text-sm text-gray-700">
           {loadingSys || !system ? (
             <div className="text-xs text-gray-400">Loading alerts...</div>
@@ -990,12 +1046,20 @@ useEffect(() => {
               <div
                 key={`alert-${i}`}
                 className={`p-2 rounded flex items-start gap-3 ${
-                  a.severity === "critical" ? "bg-red-50" : a.severity === "warning" ? "bg-yellow-50" : "bg-gray-50"
+                  a.severity === "critical"
+                    ? "bg-red-50"
+                    : a.severity === "warning"
+                    ? "bg-yellow-50"
+                    : "bg-gray-50"
                 }`}
               >
                 <div
                   className={`w-2 h-6 rounded ${
-                    a.severity === "critical" ? "bg-red-500" : a.severity === "warning" ? "bg-yellow-400" : "bg-gray-400"
+                    a.severity === "critical"
+                      ? "bg-red-500"
+                      : a.severity === "warning"
+                      ? "bg-yellow-400"
+                      : "bg-gray-400"
                   }`}
                 />
                 <div className="flex-1">
@@ -1007,29 +1071,35 @@ useEffect(() => {
           )}
         </div>
       </div>
+    )}
+
 
 
       {/* Containers table */}
-      <div key="containers-table" className="bg-white rounded-2xl shadow p-4 h-full flex flex-col">
-        <div className="flex justify-between items-start mb-3">
-          <div className="text-sm font-medium">Containers</div>
-          <button 
-            onClick={() => toggleComponentState('containers-table')}
-            className="text-xs text-gray-500 hover:text-gray-700"
-          >
-            {getButtonIcon('containers-table')}
-          </button>
-        </div>
-        {loadingContainers ? (
-          <div className="flex items-center justify-center grow text-gray-500">
-            Loading containers...
-          </div>
-        ) : (
-          <div className="grow overflow-y-auto">
-            <ContainersTable containers={containers} />
-          </div>
-        )}
+      {visibleComponents["containers-table"] && (
+  <div key="containers-table" className="bg-white rounded-2xl shadow p-4 h-full flex flex-col">
+    <div className="flex justify-between items-start mb-3">
+      <div className="text-sm font-medium">Containers</div>
+      <button
+        onClick={() => toggleComponentState("containers-table")}
+        className="text-xs text-gray-500 hover:text-gray-700"
+      >
+        {getButtonIcon("containers-table")}
+      </button>
+    </div>
+
+    {loadingContainers ? (
+      <div className="flex items-center justify-center grow text-gray-500">
+        Loading containers...
       </div>
+    ) : (
+      <div className="grow overflow-y-auto">
+        <ContainersTable containers={containers} />
+      </div>
+    )}
+  </div>
+)}
+
     </GridLayout>
     </div>
   );

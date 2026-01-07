@@ -1,9 +1,10 @@
 import datetime
+from app.utils.containerUptime import container_uptime_info
 import time
 from app.utils.loggerConfig import InitializeLogger
 from docker.errors import NotFound
 import psutil
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics, addSystemMetrics
 from app.utils.containerCache import container_stats_cache, container_stats_lock
 from app.utils.dockerClient import DockerClientProvider
@@ -20,6 +21,7 @@ from app.app_config import (
 )
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api")
+
 docker_client = DockerClientProvider.get_docker_client()
 logger = InitializeLogger(__name__)
 
@@ -249,6 +251,8 @@ def container_stats(container_id):
     try:
         container = docker_client.containers.get(container_id)
         usage = compute_container_usage(container)
+        uptime_info = container_uptime_info(container)
+
 
         stats_data = {
             "id": container_id,
@@ -259,6 +263,10 @@ def container_stats(container_id):
             "mem_limit": usage["mem_limit"],
             "mem_usage_bytes": usage["mem_usage_bytes"],
             "mem_limit_bytes": usage["mem_limit_bytes"],
+             "uptime": uptime_info["uptime"],
+    "uptime_seconds": uptime_info["uptime_seconds"],
+    "started_at": uptime_info.get("started_at"),
+    "finished_at": uptime_info.get("finished_at"),
         }
 
         # Add to ring buffer
@@ -574,6 +582,126 @@ def stop_container(container_id):
             "error": "Unexpected error occurred",
             "message": "Failed to stop container",
         }), 500
+
+# File Explorer: max bytes returned when previewing a file (prevents huge responses)
+MAX_FILE_BYTES = 200_000  # preview size limit
+
+# File Explorer API: returns a safe preview of a file inside the container (used by "Open file" in the UI)
+@metrics_bp.route("/containers/<container_id>/file")
+def container_file(container_id):
+    """
+    Read a text file inside a container.
+    Example: GET /api/containers/<id>/file?path=/app/sample.txt
+    """
+    path = (request.args.get("path") or "").strip()
+
+    if not path:
+        return jsonify({"message": "Missing query param: path"}), 400
+
+    if not path.startswith("/"):
+        return jsonify({"message": "Path must start with /. Example: /app/sample.txt"}), 400
+
+    try:
+        container = docker_client.containers.get(container_id)
+
+        # Read up to MAX_FILE_BYTES bytes from file (safe preview)
+        cmd = [
+            "sh",
+            "-lc",
+            f"if [ -f '{path}' ]; then head -c {MAX_FILE_BYTES} '{path}'; else exit 2; fi",
+        ]
+
+        # Execute a shell command ("cmd") inside the container to retrieve filesystem data
+        result = container.exec_run(cmd, stdout=True, stderr=True)
+
+        if result.exit_code == 2:
+            return jsonify({"message": f"File not found: {path}"}), 404
+
+        if result.exit_code != 0:
+            err = (result.output or b"").decode("utf-8", "replace")
+            return jsonify({"message": "Failed to read file", "details": err}), 500
+
+        raw = result.output or b""
+        return jsonify({
+            "path": path,
+            "content": raw.decode("utf-8", "replace"),
+            "truncated": len(raw) >= MAX_FILE_BYTES
+        }), 200
+
+    except NotFound:
+        return jsonify({
+            "message": "Container not found or has been removed",
+            "container_id": container_id
+        }), 410
+
+    except Exception as e:
+        logger.error(f"Error reading file {path} from container {container_id}: {e}")
+        return jsonify({
+            "message": "Unexpected error occurred",
+            "details": str(e),
+        }), 500
+
+# File Explorer API: lists one directory in the container (used by Files tab navigation + Up/Refresh)
+@metrics_bp.route("/containers/<container_id>/fs")
+def container_fs(container_id):
+    path = (request.args.get("path") or "/").strip()
+    if not path.startswith("/"):
+        return jsonify({"message": "Path must start with /"}), 400
+
+    try:
+        container = docker_client.containers.get(container_id)
+
+        # -A: almost all (skip . and ..)
+        # -p: append / to directories
+        # -1: one entry per line
+        cmd = ["sh", "-lc", f"""
+        p={_sh_quote(path)}
+        if [ ! -d "$p" ]; then
+          echo "__NOTDIR__"
+          exit 3
+        fi
+        ls -Ap1 "$p"
+        """]
+
+        result = container.exec_run(cmd, stdout=True, stderr=True)
+
+        if result.exit_code == 3:
+            return jsonify({"message": f"Not a directory: {path}"}), 400
+
+        if result.exit_code != 0:
+            err = (result.output or b"").decode("utf-8", "replace")
+            return jsonify({"message": "Failed to list directory", "details": err}), 500
+
+        raw = (result.output or b"").decode("utf-8", "replace").splitlines()
+
+        entries = []
+        for name in raw:
+            if not name:
+                continue
+            is_dir = name.endswith("/")
+            clean = name[:-1] if is_dir else name
+
+            full_path = (path.rstrip("/") + "/" + clean) if path != "/" else ("/" + clean)
+
+            entries.append({
+                "name": clean,
+                "path": full_path,
+                "type": "dir" if is_dir else "file",
+            })
+
+        entries.sort(key=lambda e: (0 if e["type"] == "dir" else 1, e["name"].lower()))
+        return jsonify({"path": path, "entries": entries}), 200
+
+    except NotFound:
+        return jsonify({"message": "Container not found", "container_id": container_id}), 410
+    except Exception as e:
+        logger.error(f"Error listing fs for {container_id} path={path}: {e}")
+        return jsonify({"message": "Unexpected error occurred", "details": str(e)}), 500
+
+
+def _sh_quote(s: str) -> str:
+    # safe single-quote shell escaping
+    return "'" + s.replace("'", "'\"'\"'") + "'"
 
 @metrics_bp.route("/config")
 def get_configuration():
