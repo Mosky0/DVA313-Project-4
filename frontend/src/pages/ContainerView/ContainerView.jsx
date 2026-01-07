@@ -634,12 +634,12 @@ export default function ContainerView() {
                               <td className="py-2 px-3">{proc.pid || "—"}</td>
                               <td className="px-3">
                                 {proc.cpu_percent != null
-                                  ? `${proc.cpu_percent}%`
+                                  ? `${Number(proc.cpu_percent).toFixed(1)}%`
                                   : "—"}
                               </td>
                               <td className="px-3">
                                 {proc.mem_percent != null
-                                  ? `${proc.mem_percent}%`
+                                  ? `${Number(proc.mem_percent).toFixed(1)}%`
                                   : "—"}
                               </td>
                               <td className="px-3">{proc.state || "—"}</td>

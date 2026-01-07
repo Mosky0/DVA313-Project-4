@@ -807,7 +807,7 @@ useEffect(() => {
             {loadingSys || !system ? (
               <CircleMetric value={0} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
             ) : (
-              <CircleMetric value={Math.round(system?.cpu?.total_percent || 0)} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
+              <CircleMetric value={Number((system?.cpu?.total_percent || 0).toFixed(1))} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
             )}
           </div>
         </div>
@@ -917,7 +917,7 @@ useEffect(() => {
                       <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
                     </div>
                   </div>
-                  <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
+                  <div className="w-12 text-right text-xs font-medium">{Number(displayValue.toFixed(1))}%</div>
                 </div>
               );
             })

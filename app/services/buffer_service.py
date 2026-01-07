@@ -36,8 +36,8 @@ class MetricsCollector:
         try:
             try:
                 # Host metrics
-                total_cpu = psutil.cpu_percent(interval=0.1)
-                per_core = psutil.cpu_percent(interval=0.1, percpu=True)
+                per_core = psutil.cpu_percent(interval=0.2, percpu=True)
+                total_cpu = sum(per_core) / len(per_core) if per_core else 0.0
                 
                 mem = psutil.virtual_memory()
                 used_bytes = mem.used
