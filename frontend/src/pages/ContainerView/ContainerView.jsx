@@ -77,6 +77,40 @@ export default function ContainerView() {
     return `${seconds}s`;
   }
 
+  function formatCPUtime(timeStr) { //cpu time is the time a process has been actively using the cpu si
+    if (!timeStr || timeStr == "--") return "--";
+
+    const parts = timeStr.split(/[-:]/);
+
+    try {
+      if (parts.length === 2) {
+        const [min, sec] = parts.map(Number);
+        if (min === 0) return `${sec}s`;
+        return `${min}m ${sec}s`;
+      } else if (parts.length === 3) {
+        const [hrs, min, sec] = parts.map(Number);
+        if (hrs === 0) {
+          if (min === 0) return `${sec}s`;
+          return `${min}m ${sec}s`;
+        }
+        return `${hrs}h ${min}m ${sec}s`;
+      } else if (parts.length === 4) {
+        const [days, hrs, min, sec] = parts.map(Number);
+        if (days === 0) {
+          if (hrs === 0) {
+            if (min === 0) return `${sec}s`;
+            return `${min}m ${sec}s`;
+          }
+          return `${hrs}h ${min}m ${sec}s`;
+        }
+        return `${days}d ${hrs}h ${min}m`;  
+      }
+      return timeStr;
+    } catch {
+      return timeStr;
+    }
+  }
+
   const stampLogs = (prevStamped, nextRaw) => {
     const pool = new Map();
     for (const item of prevStamped) {
@@ -775,7 +809,9 @@ export default function ContainerView() {
                                   : "—"}
                               </td>
                               <td className="px-3">{proc.state || "—"}</td>
-                              <td className="px-3">{proc.time || "—"}</td>
+                              <td className="px-3" title={proc.time || "—"}>
+                                {formatCPUtime(proc.time)}
+                              </td>
                               <td className="px-3 truncate max-w-xs">
                                 {proc.command || "—"}
                               </td>
