@@ -73,7 +73,7 @@ root       100  0.1  0.5   4520  1024 ?        S    10:10   0:00 /usr/bin/sleep 
 
 
 # ============================================================================
-# INTEGRATION TEST FIXTURES (Optional - only if running integration tests)
+# INTEGRATION TEST FIXTURES 
 # ============================================================================
 
 @pytest.fixture
