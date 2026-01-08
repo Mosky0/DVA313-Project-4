@@ -1,4 +1,5 @@
 import datetime
+from zoneinfo import ZoneInfo
 from app.utils.containerUptime import container_uptime_info
 import time
 from app.utils.loggerConfig import InitializeLogger
@@ -331,7 +332,7 @@ def container_logs(container_id):
         container = docker_client.containers.get(container_id)
 
         raw = container.logs(tail=50).decode("utf-8", errors="replace")
-        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        now = datetime.now(ZoneInfo("Europe/Stockholm")).isoformat()
 
         lines = [f"[{now}] {line}" for line in raw.splitlines()]
 

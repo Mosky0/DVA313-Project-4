@@ -6,7 +6,7 @@ from app.routes.metrics import compute_container_usage
 from app.utils.dockerClient import DockerClientProvider
 
 class MetricsCollector:
-    def __init__(self, interval=5):
+    def __init__(self, interval=3):
         self.interval = interval 
         self.docker_client = DockerClientProvider.get_docker_client()
         self.running = False
