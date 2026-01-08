@@ -7,3 +7,4 @@ psutil
 flask_cors
 pytest==9.0.2
 pytest-cov
+pytest-mock

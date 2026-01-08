@@ -16,13 +16,11 @@ import { containerCache } from "../../utils/cache";
 export default function ContainerView() {
   const { id } = useParams(); 
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState("details");
   const containerName = location.state?.name || "";
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
   const [isStopping, setIsStopping] = useState(false);
-
   const [cpuHistory, setCpuHistory] = useState([]);
   
   const [fixedCpuWindowData, setFixedCpuWindowData] = useState(
@@ -73,6 +71,25 @@ export default function ContainerView() {
     setCpuCurrentPosition(pointsToUse);
     setIsCpuWindowFull(pointsToUse >= 50);
   }, [cpuHistory]);
+  const [filePathInput, setFilePathInput] = useState("");
+  const [fileTabs, setFileTabs] = useState([]);
+  const [logs, setLogs] = useState([]);                     // array of { msg: string, seenAt: number }
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState("");
+  const statsIntervalRef = useRef(null);
+  const logsIntervalRef = useRef(null);
+  const logsBoxRef = useRef(null);
+  const [activeTab, setActiveTab] = useState("details");    //Which top-level tab is active: "details" | "logs" | "files" | "file:/path/to/file"
+  const [processes, setProcesses] = useState([]);
+  const [processesLoading, setProcessesLoading] = useState(false);
+  const [processesError, setProcessesError] = useState("");
+  const [sortField, setSortField] = useState("");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [fsPath, setFsPath] = useState("/");            // Current directory path being shown in the Files tab
+  const [fsEntries, setFsEntries] = useState([]);       // Directory listing (files + folders) for the current fsPath
+  const [fsLoading, setFsLoading] = useState(false);    // Loading flag while fetching a directory listing
+  const [fsError, setFsError] = useState("");           // Error message when failing to fetch a directory listing
+  const fsCacheRef = useRef(new Map());                 // Cache of directory listings by path to reduce repeat API calls
 
   const cpuTrendMax = useMemo(() => {
     if (!cpuHistory.length) return 100;
@@ -85,14 +102,6 @@ export default function ContainerView() {
     const padded = max + Math.max(2, max * 0.03);
     return Math.min(100, Math.ceil(padded));
   }, [cpuHistory]);
-
-  const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [logsError, setLogsError] = useState("");
-
-  const statsIntervalRef = useRef(null);
-  const logsIntervalRef = useRef(null);
-  const logsBoxRef = useRef(null);
 
   function formatUptime(startedAt) {
   if (!startedAt) return "N/A";
@@ -125,7 +134,6 @@ export default function ContainerView() {
       arr.push(item.seenAt);
       pool.set(item.msg, arr);
     }
-
     const now = Date.now();
     return (nextRaw || []).map((msg, i) => {
       const arr = pool.get(msg);
@@ -134,12 +142,6 @@ export default function ContainerView() {
       return { msg, seenAt: reused ?? (now + i) };
     });
   };
-
-  const [processes, setProcesses] = useState([]);
-  const [processesLoading, setProcessesLoading] = useState(false);
-  const [processesError, setProcessesError] = useState("");
-  const [sortField, setSortField] = useState("");
-  const [sortOrder, setSortOrder] = useState("asc");
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -150,10 +152,89 @@ export default function ContainerView() {
     }
   };
 
+  // Files tab: fetch and display the directory listing for `path` (uses an in-memory cache to avoid repeat API calls)
+  const fetchDir = async (path) => {
+    setFsPath(path);
+    setFsError("");
+
+    const cached = fsCacheRef.current.get(path);
+    if (cached) {
+      setFsEntries(cached);
+      return;
+    }
+
+    try {
+      setFsLoading(true);
+      const res = await fetch(`/api/containers/${id}/fs?path=${encodeURIComponent(path)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Failed to list directory");
+
+      const entries = Array.isArray(data.entries) ? data.entries : [];
+      fsCacheRef.current.set(path, entries);
+      setFsEntries(entries);
+    } catch (e) {
+      setFsError(e.message);
+      setFsEntries([]);
+    } finally {
+      setFsLoading(false);
+    }
+  };
+
+  // Opens a file inside the container by path and displays it in a new or existing file tab
+  const openFilePath = async () => {
+    const path = filePathInput.trim();
+    if (!path) return;
+
+    const name = path.split("/").filter(Boolean).pop() || path; // tab label
+    const key = `file:${path}`;
+
+    // Create tab if it doesn't exist
+    setFileTabs((prev) => {
+      if (prev.some((t) => t.key === key)) return prev;
+      return [
+        ...prev,
+        { key, name, path, content: "", loading: true, error: "", truncated: false },
+      ];
+    });
+
+    // Switch to it
+    setActiveTab(key);
+
+    try {
+      const res = await fetch(
+        `/api/containers/${id}/file?path=${encodeURIComponent(path)}`
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) throw new Error(data?.message || "Failed to open file");
+
+      setFileTabs((prev) =>
+        prev.map((t) =>
+          t.key === key
+            ? {
+                ...t,
+                content: data.content ?? "",
+                truncated: !!data.truncated,
+                loading: false,
+                error: "",
+              }
+            : t
+        )
+      );
+    } catch (e) {
+      setFileTabs((prev) =>
+        prev.map((t) =>
+          t.key === key ? { ...t, loading: false, error: e.message } : t
+        )
+      );
+    }
+  };
+
   // --------- STOP A CONTAINER ----------
   const stopContainer = async () => {
     setIsStopping(true);
-    const TOAST_ID = "stop-container";
+    
 
     try {
       const response = await fetch(`/api/containers/${id}/stop`, {
@@ -165,10 +246,7 @@ export default function ContainerView() {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success("Container stopped successfully.", {
-          toastId: TOAST_ID,
-          autoClose: 2000,
-        });
+       
         setStats((prevStats) => ({
           ...prevStats,
           status: "exited",
@@ -414,6 +492,20 @@ export default function ContainerView() {
     return () => clearInterval(intervalId);
   }, [activeTab, id]);
 
+  useEffect(() => {
+    if (activeTab === "files") {
+      fetchDir(fsPath || "/");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, id]);
+
+  useEffect(() => {
+    fsCacheRef.current.clear();
+    setFsPath("/");
+    setFsEntries([]);
+    setFsError("");
+  }, [id]);
+
   const memPercent = (() => {
     if (!stats || !stats.mem_usage_bytes || !stats.mem_limit_bytes) return 0;
     if (stats.mem_limit_bytes === 0) return 0;
@@ -503,7 +595,7 @@ export default function ContainerView() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-6 border-b mb-6">
+      <div className="flex gap-6 border-b mb-6 overflow-x-auto">
         <button
           className={`pb-2 ${
             activeTab === "details"
@@ -525,6 +617,33 @@ export default function ContainerView() {
         >
           Logs
         </button>
+
+        <button
+          className={`pb-2 ${
+            activeTab === "files"
+              ? "border-b-2 border-blue-600 text-blue-600 font-semibold"
+              : "text-gray-600"
+          }`}
+          onClick={() => setActiveTab("files")}
+        >
+          Files
+        </button>
+
+
+        {fileTabs.map((t) => (
+          <button
+            key={t.key}
+            className={`pb-2 whitespace-nowrap ${
+              activeTab === t.key
+                ? "border-b-2 border-blue-600 text-blue-600 font-semibold"
+                : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab(t.key)}
+            title={t.path}
+          >
+            {t.name}
+          </button>
+        ))}
       </div>
 
       {/* DETAILS TAB */}
@@ -752,6 +871,150 @@ export default function ContainerView() {
           )}
         </div>
       )}
+
+      {/* FILE TAB */}
+      {activeTab.startsWith("file:") && (() => {
+        const tab = fileTabs.find((t) => t.key === activeTab);
+        if (!tab) return null;
+
+        return (
+          <div className="bg-white shadow rounded-xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-gray-500 text-sm">File</p>
+                <p className="font-semibold">{tab.path}</p>
+              </div>
+
+              <button
+                className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
+                onClick={() => {
+                  setFileTabs((prev) => prev.filter((x) => x.key !== tab.key));
+                  setActiveTab("details");
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            {tab.loading && <p className="text-gray-500 text-sm">Loading…</p>}
+            {tab.error && <p className="text-red-500 text-sm">{tab.error}</p>}
+
+            {!tab.loading && !tab.error && (
+              <>
+                {tab.truncated && (
+                  <p className="text-amber-600 text-sm mb-2">Preview truncated.</p>
+                )}
+
+                <pre className="bg-black text-green-200 rounded-xl p-4 overflow-auto max-h-[520px] text-sm font-mono">
+                  {tab.content || "(empty)"}
+                </pre>
+              </>
+            )}
+          </div>
+        );
+      })()}
+
+      {activeTab === "files" && (
+        <div className="bg-white shadow rounded-xl p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-gray-500 text-sm">Filesystem</p>
+              <p className="font-mono font-semibold">{fsPath}</p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
+                onClick={() => {
+                  const parent =
+                    fsPath === "/" ? "/" : fsPath.replace(/\/[^/]+$/, "") || "/";
+                  fetchDir(parent);
+                }}
+              >
+                Up
+              </button>
+
+              <button
+                className="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
+                onClick={() => {
+                  fsCacheRef.current.delete(fsPath);
+                  fetchDir(fsPath);
+                }}
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {fsLoading && <p className="text-gray-500 text-sm">Loading…</p>}
+          {fsError && <p className="text-red-500 text-sm">{fsError}</p>}
+
+          {!fsLoading && !fsError && (
+            <div className="border rounded-lg overflow-hidden">
+            <div className="grid grid-cols-1 bg-gray-50 text-xs text-gray-600 px-3 py-2">
+              <div>Name</div>
+            </div>
+
+              {fsEntries.length === 0 ? (
+                <div className="px-3 py-3 text-sm text-gray-500">Empty directory</div>
+              ) : (
+                fsEntries.map((e) => (
+                <button
+                  key={e.path}
+                  className="w-full text-left grid grid-cols-1 px-3 py-2 text-sm hover:bg-gray-50 border-t"
+                  onClick={() => {
+                    if (e.type === "dir") {
+                      fetchDir(e.path);
+                    } else if (e.type === "file") {
+                      setFilePathInput(e.path);
+                      setTimeout(openFilePath, 0);
+                    }
+                  }}
+                  title={e.path}
+                >
+                  <div className="font-mono truncate">
+                    {e.type === "dir" ? "[DIR] " : "[FILE] "}
+                    {e.name}
+                  </div>
+                </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}  
+
+
+      {/* OPEN FILE INPUT (FILES TAB ONLY) */}
+      {activeTab === "files" && (
+        <div className="mt-8 bg-white shadow rounded-xl p-4">
+          <p className="font-semibold text-gray-700 mb-2">
+            Open file inside container
+          </p>
+
+          <div className="flex gap-3">
+            <input
+              className="flex-1 border rounded-lg px-3 py-2 text-sm"
+              placeholder="Try: /app/sample.txt"
+              value={filePathInput}
+              onChange={(e) => setFilePathInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") openFilePath();
+              }}
+            />
+
+            <button
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+              onClick={openFilePath}
+            >
+              Open
+            </button>
+          </div>
+        </div>
+      )}
+
+
+
     </div>
   );
 }

@@ -182,7 +182,9 @@ export default function Containers() {
                   <td className="py-3 px-4">{row.mem}</td>
                   <td className="py-3 px-4">{row.status}</td>
                   <td className="py-3 px-4 text-right">
-                    <button className="p-2 rounded-lg bg-gray-200 hover:bg-gray-300" onClick={() => navigate(`/containers/${row.id}`)}>
+                    <button className="p-2 rounded-lg bg-gray-200 hover:bg-gray-300"  onClick={() => {
+                    navigate(`/containers/${row.id}`, { state: { name: row?.name } });
+                  }}>
                       <FaChevronRight />
                     </button>
                   </td>
