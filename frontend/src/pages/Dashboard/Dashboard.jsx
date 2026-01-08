@@ -3,7 +3,7 @@ import ChartCard from "../../components/ui/ChartCard";
 import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid
+  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, AreaChart, Area
 } from "recharts";
 import GridLayout from "react-grid-layout";
 import "./../../../node_modules/react-grid-layout/css/styles.css";
@@ -197,6 +197,61 @@ const Dashboard = React.memo(() => {
       return newData;
     });
   }, [systemCpuHistory, cpuCoreHistory]);
+
+  const [fixedMemoryWindowData, setFixedMemoryWindowData] = useState(
+    Array(50).fill().map((_, index) => ({
+      index: index,
+      time: null,
+      value: 0
+    }))
+  );
+
+  const [memoryCurrentPosition, setMemoryCurrentPosition] = useState(0);
+  const [isMemoryWindowFull, setIsMemoryWindowFull] = useState(false);
+
+  useEffect(() => {
+    if (!systemMemoryHistory || systemMemoryHistory.length === 0) {
+      setFixedMemoryWindowData(
+        Array(50).fill().map((_, index) => ({
+          index: index,
+          time: null,
+          value: 0
+        }))
+      );
+      setMemoryCurrentPosition(0);
+      setIsMemoryWindowFull(false);
+      return;
+    }
+
+    setFixedMemoryWindowData(prevData => {
+      const newData = [...prevData];
+      
+      const latestMemory = systemMemoryHistory[systemMemoryHistory.length - 1];
+      
+      const newPoint = { 
+        index: isMemoryWindowFull ? 49 : memoryCurrentPosition,
+        time: latestMemory?.timestamp || null,
+        value: latestMemory?.value || 0
+      };
+      
+      if (isMemoryWindowFull) {
+        for (let i = 0; i < 49; i++) {
+          newData[i] = { ...newData[i + 1], index: i };
+        }
+        newData[49] = newPoint;
+      } else {
+        newData[memoryCurrentPosition] = newPoint;
+        
+        if (memoryCurrentPosition >= 49) {
+          setIsMemoryWindowFull(true);
+        } else {
+          setMemoryCurrentPosition(prev => prev + 1);
+        }
+      }
+      
+      return newData;
+    });
+  }, [systemMemoryHistory]);
 
   // Define default layout
   const defaultLayout = [
@@ -636,6 +691,19 @@ useEffect(() => {
       value: entry.value
     }));
   }, [systemMemoryHistory]);
+
+  const memoryTrendMax = useMemo(() => {
+    if (!fixedMemoryWindowData.length) return 100;
+
+    let max = 0;
+    for (const row of fixedMemoryWindowData) {
+      const value = typeof row.value === "number" ? row.value : Number(row.value);
+      if (Number.isFinite(value)) max = Math.max(max, value);
+    }
+
+    const padded = max + Math.max(5, max * 0.1);
+    return Math.min(100, Math.ceil(padded));
+  }, [fixedMemoryWindowData]);
 
 
   const derivedAlerts = useMemo(() => {
@@ -1110,12 +1178,59 @@ useEffect(() => {
             Loading memory trend data...
           </div>
         ) : (
-          <ChartCard
-            title="System Memory trend"
-            data={memoryTrendSeries}
-            type="area"
-            showTitle={false}
-          />
+          <div className="w-full flex-grow min-h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={fixedMemoryWindowData}>
+                <defs>
+                  <linearGradient id="memoryGrad" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#2496ED" stopOpacity={0.25}/>
+                    <stop offset="100%" stopColor="#2496ED" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="index" 
+                  stroke="#888" 
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(index) => {
+                    const dataPoint = memoryTrendSeries[index];
+                    if (dataPoint && dataPoint.time) {
+                      return dataPoint.time;
+                    }
+                    return '';
+                  }}
+                  axisLine={true}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis
+                  stroke="#888"
+                  domain={[0, memoryTrendMax]}
+                  tick={{ fontSize: 12 }}
+                  width={30}
+                />
+                <Tooltip 
+                  formatter={(value) => [`${Math.round(value)}%`, 'Memory']}
+                  labelFormatter={(index) => {
+                    const dataPoint = memoryTrendSeries[index];
+                    if (dataPoint && dataPoint.time) {
+                      return `Time: ${dataPoint.time}`;
+                    }
+                    return `Point ${index}`;
+                  }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="value" 
+                  name="Memory Usage"
+                  stroke="#2496ED" 
+                  fill="url(#memoryGrad)" 
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
 
