@@ -314,11 +314,13 @@ const Dashboard = React.memo(() => {
               newComponentStates[item.i] = (item.w === 1 && item.h === 1) ? 'minimized' : 'maximized';
               break;
             case 'cpu-activity-chart':
+              newComponentStates[item.i] = (item.w === 5 && item.h === 2) ? 'minimized' : 'maximized';
+              break;
             case 'cpu-trend-chart':
-              newComponentStates[item.i] = (item.w === 4 && item.h === 2) ? 'minimized' : 'maximized';
+              newComponentStates[item.i] = (item.w === 6 && item.h === 2) ? 'minimized' : 'maximized';
               break;
             case 'memory-trend-chart':
-              newComponentStates[item.i] = (item.w === 4 && item.h === 2) ? 'minimized' : 'maximized';
+              newComponentStates[item.i] = (item.w === 3 && item.h === 2) ? 'minimized' : 'maximized';
               break;
             case 'alerts-panel':
               newComponentStates[item.i] = (item.w === 2 && item.h === 2) ? 'minimized' : 'maximized';
@@ -425,8 +427,26 @@ const Dashboard = React.memo(() => {
         let updatedItem;
         switch (componentId) {
           case 'load-card':
+            updatedItem = {
+              ...item,
+              w: newState === 'minimized' ? 1 : 3,
+              h: 1
+            };
+            break;
           case 'cpu-card':
+            updatedItem = {
+              ...item,
+              w: newState === 'minimized' ? 1 : 2,
+              h: 1
+            };
+            break;
           case 'memory-card':
+            updatedItem = {
+              ...item,
+              w: newState === 'minimized' ? 1 : 4,
+              h: 1
+            };
+            break;
           case 'uptime-card':
             updatedItem = {
               ...item,
@@ -435,31 +455,37 @@ const Dashboard = React.memo(() => {
             };
             break;
           case 'cpu-activity-chart':
+            updatedItem = {
+              ...item,
+              w: 5,
+              h: newState === 'minimized' ? 2 : 4
+            };
+            break;
           case 'cpu-trend-chart':
             updatedItem = {
               ...item,
-              w: 4,
+              w: newState === 'minimized' ? 6 : 6,
               h: newState === 'minimized' ? 2 : 4
             };
             break;
           case 'memory-trend-chart':
             updatedItem = {
               ...item,
-              w: newState === 'minimized' ? 4 : 8,
+              w: newState === 'minimized' ? 3 : 6,
               h: 2
             };
             break;
           case 'alerts-panel':
             updatedItem = {
               ...item,
-              w: newState === 'minimized' ? 2 : 4,
+              w: newState === 'minimized' ? 2 : 5,
               h: 2
             };
             break;
           case 'containers-table':
             updatedItem = {
               ...item,
-              h: newState === 'minimized' ? 3 : 6
+              h: newState === 'minimized' ? 3 : 4
             };
             break;
           default:
@@ -469,11 +495,11 @@ const Dashboard = React.memo(() => {
         updatedItem.w = Math.max(1, updatedItem.w);
         updatedItem.h = Math.max(1, updatedItem.h);
         
-        updatedItem.x = Math.max(0, Math.min(updatedItem.x, 7)); // Max x position for 8 columns grid
+        updatedItem.x = Math.max(0, Math.min(updatedItem.x, 10)); // Max x position for 8 columns grid
         updatedItem.y = Math.max(0, updatedItem.y);
         
-        if (updatedItem.x + updatedItem.w > 8) {
-          updatedItem.x = Math.max(0, 8 - updatedItem.w);
+        if (updatedItem.x + updatedItem.w > 11) {
+          updatedItem.x = Math.max(0, 11 - updatedItem.w);
         }
         
         return updatedItem;
