@@ -255,18 +255,18 @@ const Dashboard = React.memo(() => {
 
   // Define default layout
   const defaultLayout = [
-    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false },
-    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false },
-    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false },
-    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false },
+    { "i": "load-card", "x": 2, "y": 0, "w": 3, "h": 1, "moved": false },
+    { "i": "cpu-card", "x": 5, "y": 0, "w": 2, "h": 1, "moved": false },
+    { "i": "memory-card", "x": 7, "y": 0, "w": 4, "h": 1, "moved": false },
+    { "i": "uptime-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false },
     
-    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 2, "moved": false },
-    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 2, "moved": false },
+    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 5, "h": 2, "moved": false },
+    { "i": "cpu-trend-chart", "x": 5, "y": 1, "w": 6, "h": 2, "moved": false },
     
-    { "i": "memory-trend-chart", "x": 0, "y": 3, "w": 4, "h": 2, "moved": false },
-    { "i": "alerts-panel", "x": 4, "y": 3, "w": 4, "h": 2, "moved": false },
+    { "i": "memory-trend-chart", "x": 5, "y": 3, "w": 6, "h": 2, "moved": false },
+    { "i": "alerts-panel", "x": 0, "y": 3, "w": 5, "h": 2, "moved": false },
     
-    { "i": "containers-table", "x": 0, "y": 4.5, "w": 8, "h": 4, "moved": false }
+    { "i": "containers-table", "x": 0, "y": 4.5, "w": 11, "h": 4, "moved": false }
   ];
 
   useEffect(() => {
@@ -675,7 +675,7 @@ useEffect(() => {
     const used = system.memory?.used_bytes || 0;
     const limit = system.memory?.limit_bytes || 0;
     if (!limit) return 0;
-    return Math.round((used / limit) * 100);
+    return Number(((used / limit) * 100).toFixed(1));
   }, [system]);
 
   const [alertTimestamps, setAlertTimestamps] = useState({});
@@ -1121,7 +1121,7 @@ useEffect(() => {
                   width={30}
                 />
                 <Tooltip 
-                  formatter={(value, name) => [`${Math.round(value)}%`, name]}
+                  formatter={(value, name) => [`${Number(value).toFixed(1)}%`, name]}
                   labelFormatter={(index) => {
                     const dataPoint = cpuTrendSeries[index];
                     if (dataPoint && dataPoint.time) {
@@ -1211,7 +1211,7 @@ useEffect(() => {
                   width={30}
                 />
                 <Tooltip 
-                  formatter={(value) => [`${Math.round(value)}%`, 'Memory']}
+                  formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Memory']}
                   labelFormatter={(index) => {
                     const dataPoint = memoryTrendSeries[index];
                     if (dataPoint && dataPoint.time) {
