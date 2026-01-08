@@ -1249,81 +1249,65 @@ useEffect(() => {
 
 
       {/* Memory trend */}
-      <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
-        <div className="flex justify-between items-start mb-2">
-          <div className="text-sm font-medium">System Memory trend</div>
-          <button 
-            onClick={() => toggleComponentState('memory-trend-chart')}
-            className="text-xs text-gray-500 hover:text-gray-700"
-          >
-            {getButtonIcon('memory-trend-chart')}
-          </button>
+      {visibleComponents["memory-trend-chart"] && (
+        <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
+          <div className="flex justify-between items-start mb-2">
+            <div className="text-sm font-medium">System Memory trend</div>
+            <button
+              onClick={() => toggleComponentState("memory-trend-chart")}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              {getButtonIcon("memory-trend-chart")}
+            </button>
+          </div>
+
+          {loadingSys || !system ? (
+            <div className="flex items-center justify-center grow text-gray-500">
+              Loading memory trend data...
+            </div>
+          ) : (
+            <div className="w-full flex-grow min-h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={fixedMemoryWindowData}>
+                  <defs>
+                    <linearGradient id="memoryGrad" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#2496ED" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#2496ED" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="index"
+                    stroke="#888"
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(index) => (memoryTrendSeries[index]?.time ? memoryTrendSeries[index].time : "")}
+                    axisLine={true}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis stroke="#888" domain={[0, memoryTrendMax]} tick={{ fontSize: 12 }} width={30} />
+                  <Tooltip
+                    formatter={(value) => [`${Number(value).toFixed(1)}%`, "Memory"]}
+                    labelFormatter={(index) =>
+                      memoryTrendSeries[index]?.time ? `Time: ${memoryTrendSeries[index].time}` : `Point ${index}`
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    name="Memory Usage"
+                    stroke="#2496ED"
+                    fill="url(#memoryGrad)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
-        {loadingSys || !system ? (
-          <div className="flex items-center justify-center grow text-gray-500">
-            Loading memory trend data...
-          </div>
-        ) : (
-          <div className="w-full flex-grow min-h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={fixedMemoryWindowData}>
-                <defs>
-                  <linearGradient id="memoryGrad" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#2496ED" stopOpacity={0.25}/>
-                    <stop offset="100%" stopColor="#2496ED" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis 
-                  dataKey="index" 
-                  stroke="#888" 
-                  tick={{ fontSize: 10 }}
-                  tickFormatter={(index) => {
-                    const dataPoint = memoryTrendSeries[index];
-                    if (dataPoint && dataPoint.time) {
-                      return dataPoint.time;
-                    }
-                    return '';
-                  }}
-                  axisLine={true}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis
-                  stroke="#888"
-                  domain={[0, memoryTrendMax]}
-                  tick={{ fontSize: 12 }}
-                  width={30}
-                />
-                <Tooltip 
-                  formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Memory']}
-                  labelFormatter={(index) => {
-                    const dataPoint = memoryTrendSeries[index];
-                    if (dataPoint && dataPoint.time) {
-                      return `Time: ${dataPoint.time}`;
-                    }
-                    return `Point ${index}`;
-                  }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="value" 
-                  name="Memory Usage"
-                  stroke="#2496ED" 
-                  fill="url(#memoryGrad)" 
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-    ) : (
-      <ChartCard title="System Memory trend" data={memoryTrendSeries} type="area" showTitle={false} />
-    )}
-  </div>
-)}
+      )}
+
 
 
     {/* Alerts panel */}
