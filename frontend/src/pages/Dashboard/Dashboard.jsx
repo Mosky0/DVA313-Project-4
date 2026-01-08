@@ -623,6 +623,7 @@ useEffect(() => {
     return Math.round((used / limit) * 100);
   }, [system]);
 
+  const [alertTimestamps, setAlertTimestamps] = useState({});
 
   const memoryTrendSeries = useMemo(() => {
     if (!systemMemoryHistory || systemMemoryHistory.length === 0) return [];
@@ -652,37 +653,119 @@ useEffect(() => {
       }
     };
 
-
     const alerts = [];
 
+    const currentAlerts = new Set();
 
     if (events && events.length) {
       events.slice(0, 10).forEach((ev) => {
+        const eventKey = `event_${ev.id || ev.timestamp || JSON.stringify(ev)}`;
+        currentAlerts.add(eventKey);
+      
+        if (!alertTimestamps[eventKey]) {
+          const eventTime = ev.time || ev.timestamp || new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+          setAlertTimestamps(prev => ({
+            ...prev,
+            [eventKey]: eventTime
+          }));
+        }
+      
         alerts.push({
           severity: "info",
-          time: ev.time || ev.timestamp || "",
+          time: alertTimestamps[eventKey] || (ev.time || ev.timestamp || ""),
           message: ev.message ?? ev.msg ?? JSON.stringify(ev),
         });
       });
     }
 
-
     containers.forEach((c) => {
       if (!c) return;
       const name = c.name || c.id;
+      
       if ((c.status || "").toLowerCase() !== "running") {
-        alerts.push({ severity: "critical", time: "", message: `${name} is ${c.status || "stopped"}` });
+        const statusKey = `container_status_${c.id}_${c.status}`;
+        currentAlerts.add(statusKey);
+      
+        if (!alertTimestamps[statusKey]) {
+          const statusTime = new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+          setAlertTimestamps(prev => ({
+            ...prev,
+            [statusKey]: statusTime
+          }));
+        }
+      
+        alerts.push({ 
+          severity: "critical", 
+          time: alertTimestamps[statusKey] || "", 
+          message: `${name} is ${c.status || "stopped"}` 
+        });
       }
+      
       const cpu = Number(c.cpu_percent ?? 0);
       if (cpu && cpu >= 75) {
-        alerts.push({ severity: "warning", time: "", message: `${name} high CPU ${cpu}%` });
+        const cpuKey = `container_cpu_high_${c.id}`;
+        currentAlerts.add(cpuKey);
+      
+        if (!alertTimestamps[cpuKey]) {
+          const cpuTime = new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+          setAlertTimestamps(prev => ({
+            ...prev,
+            [cpuKey]: cpuTime
+          }));
+        }
+      
+        alerts.push({ 
+          severity: "warning", 
+          time: alertTimestamps[cpuKey] || "", 
+          message: `${name} high CPU ${cpu}%` 
+        });
       }
+      
       const memPctC = parseMemPercent(c.mem_usage) ?? (c.mem_percent ?? null);
       if (memPctC && memPctC >= 75) {
-        alerts.push({ severity: "warning", time: "", message: `${name} high MEM ${memPctC}%` });
+        const memKey = `container_mem_high_${c.id}`;
+        currentAlerts.add(memKey);
+      
+        if (!alertTimestamps[memKey]) {
+          const memTime = new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+          setAlertTimestamps(prev => ({
+            ...prev,
+            [memKey]: memTime
+          }));
+        }
+      
+        alerts.push({ 
+          severity: "warning", 
+          time: alertTimestamps[memKey] || "", 
+          message: `${name} high MEM ${memPctC}%` 
+        });
       }
     });
 
+    const cleanupKeys = Object.keys(alertTimestamps).filter(key => !currentAlerts.has(key));
+    if (cleanupKeys.length > 0) {
+      setAlertTimestamps(prev => {
+        const newTimestamps = { ...prev };
+        cleanupKeys.forEach(key => delete newTimestamps[key]);
+        return newTimestamps;
+      });
+    }
 
     const seen = new Set();
     const unique = [];
@@ -695,7 +778,7 @@ useEffect(() => {
       if (unique.length >= 20) break;
     }
     return unique;
-  }, [events, containers]);
+  }, [events, containers, alertTimestamps]);
 
 
   const handleCoreToggle = useCallback((coreIdx) => {
