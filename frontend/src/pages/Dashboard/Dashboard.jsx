@@ -3,7 +3,7 @@ import ChartCard from "../../components/ui/ChartCard";
 import CircleMetric from "../../components/ui/CircleMetric";
 import ContainersTable from "../../components/containers/ContainersTable";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid
+  LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, AreaChart, Area
 } from "recharts";
 import GridLayout from "react-grid-layout";
 import "./../../../node_modules/react-grid-layout/css/styles.css";
@@ -121,20 +121,163 @@ const Dashboard = React.memo(() => {
 
   const wasDisconnected = useRef(false);
 
+  const [fixedWindowData, setFixedWindowData] = useState(
+    Array(50).fill().map((_, index) => ({
+      index: index,
+      time: null,
+      SystemCPU: 0,
+      Core0: 0,
+      Core1: 0,
+      Core2: 0,
+      Core3: 0,
+      Core4: 0,
+      Core5: 0
+    }))
+  );
+
+  const [currentPosition, setCurrentPosition] = useState(0);
+  const [isWindowFull, setIsWindowFull] = useState(false);
+
+  useEffect(() => {
+    if (!systemCpuHistory.length && !Object.keys(cpuCoreHistory).length) {
+      setFixedWindowData(
+        Array(50).fill().map((_, index) => ({
+          index: index,
+          time: null,
+          SystemCPU: 0,
+          Core0: 0,
+          Core1: 0,
+          Core2: 0,
+          Core3: 0,
+          Core4: 0,
+          Core5: 0
+        }))
+      );
+      setCurrentPosition(0);
+      setIsWindowFull(false);
+      return;
+    }
+
+    setFixedWindowData(prevData => {
+      const newData = [...prevData];
+      
+      const newPoint = { 
+        index: isWindowFull ? 49 : currentPosition,
+        time: null
+      };
+      
+      if (system?.cpu?.total_percent !== undefined) {
+        newPoint.SystemCPU = system.cpu.total_percent;
+        if (systemCpuHistory.length > 0) {
+          const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
+          newPoint.time = latestSystem?.timestamp;
+        }
+      } else if (systemCpuHistory.length > 0) {
+        const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
+        newPoint.SystemCPU = latestSystem?.value || 0;
+        newPoint.time = latestSystem?.timestamp || null;
+      }
+      
+      Object.keys(cpuCoreHistory).forEach(coreIdx => {
+        const coreData = cpuCoreHistory[coreIdx];
+        if (coreData && coreData.length > 0) {
+          const latestCore = coreData[coreData.length - 1];
+          newPoint[`Core${coreIdx}`] = latestCore?.value || 0;
+          
+          if (!newPoint.time && latestCore?.timestamp) {
+            newPoint.time = latestCore.timestamp;
+          }
+        }
+      });
+      
+      if (isWindowFull) {
+        for (let i = 0; i < 49; i++) {
+          newData[i] = { ...newData[i + 1], index: i };
+        }
+        newData[49] = newPoint;
+      } else {
+        newData[currentPosition] = newPoint;
+        
+        if (currentPosition >= 49) {
+          setIsWindowFull(true);
+        } else {
+          setCurrentPosition(prev => prev + 1);
+        }
+      }
+      
+      return newData;
+    });
+  }, [systemCpuHistory, cpuCoreHistory]);
+
+  const [fixedMemoryWindowData, setFixedMemoryWindowData] = useState(
+    Array(50).fill().map((_, index) => ({
+      index: index,
+      time: null,
+      value: 0
+    }))
+  );
+
+  const [memoryCurrentPosition, setMemoryCurrentPosition] = useState(0);
+  const [isMemoryWindowFull, setIsMemoryWindowFull] = useState(false);
+
+  useEffect(() => {
+    if (!systemMemoryHistory || systemMemoryHistory.length === 0) {
+      setFixedMemoryWindowData(
+        Array(50).fill().map((_, index) => ({
+          index: index,
+          time: null,
+          value: 0
+        }))
+      );
+      setMemoryCurrentPosition(0);
+      setIsMemoryWindowFull(false);
+      return;
+    }
+
+    setFixedMemoryWindowData(prevData => {
+      const newData = [...prevData];
+      
+      const latestMemory = systemMemoryHistory[systemMemoryHistory.length - 1];
+      
+      const newPoint = { 
+        index: isMemoryWindowFull ? 49 : memoryCurrentPosition,
+        time: latestMemory?.timestamp || null,
+        value: latestMemory?.value || 0
+      };
+      
+      if (isMemoryWindowFull) {
+        for (let i = 0; i < 49; i++) {
+          newData[i] = { ...newData[i + 1], index: i };
+        }
+        newData[49] = newPoint;
+      } else {
+        newData[memoryCurrentPosition] = newPoint;
+        
+        if (memoryCurrentPosition >= 49) {
+          setIsMemoryWindowFull(true);
+        } else {
+          setMemoryCurrentPosition(prev => prev + 1);
+        }
+      }
+      
+      return newData;
+    });
+  }, [systemMemoryHistory]);
+
   // Define default layout
   const defaultLayout = [
-    { "i": "load-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false },
-    { "i": "cpu-card", "x": 2, "y": 0, "w": 2, "h": 1, "moved": false },
-    { "i": "memory-card", "x": 4, "y": 0, "w": 2, "h": 1, "moved": false },
-    { "i": "uptime-card", "x": 6, "y": 0, "w": 2, "h": 1, "moved": false },
+    { "i": "load-card", "x": 2, "y": 0, "w": 3, "h": 1, "moved": false },
+    { "i": "cpu-card", "x": 5, "y": 0, "w": 2, "h": 1, "moved": false },
+    { "i": "memory-card", "x": 7, "y": 0, "w": 4, "h": 1, "moved": false },
+    { "i": "uptime-card", "x": 0, "y": 0, "w": 2, "h": 1, "moved": false },
     
-    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 4, "h": 2, "moved": false },
-    { "i": "cpu-trend-chart", "x": 4, "y": 1, "w": 4, "h": 2, "moved": false },
+    { "i": "cpu-activity-chart", "x": 0, "y": 1, "w": 5, "h": 2, "moved": false },
+    { "i": "cpu-trend-chart", "x": 5, "y": 1, "w": 6, "h": 2, "moved": false },
     
-    { "i": "memory-trend-chart", "x": 0, "y": 3, "w": 4, "h": 2, "moved": false },
-    { "i": "alerts-panel", "x": 4, "y": 3, "w": 4, "h": 2, "moved": false },
+    { "i": "memory-trend-chart", "x": 5, "y": 3, "w": 6, "h": 2, "moved": false },
+    { "i": "alerts-panel", "x": 0, "y": 3, "w": 5, "h": 2, "moved": false },
     
-    { "i": "containers-table", "x": 0, "y": 4.5, "w": 8, "h": 4, "moved": false }
+    { "i": "containers-table", "x": 0, "y": 4.5, "w": 11, "h": 4, "moved": false }
   ];
 
   useEffect(() => {
@@ -182,11 +325,13 @@ const Dashboard = React.memo(() => {
               newComponentStates[item.i] = (item.w === 1 && item.h === 1) ? 'minimized' : 'maximized';
               break;
             case 'cpu-activity-chart':
+              newComponentStates[item.i] = (item.w === 5 && item.h === 2) ? 'minimized' : 'maximized';
+              break;
             case 'cpu-trend-chart':
-              newComponentStates[item.i] = (item.w === 4 && item.h === 2) ? 'minimized' : 'maximized';
+              newComponentStates[item.i] = (item.w === 6 && item.h === 2) ? 'minimized' : 'maximized';
               break;
             case 'memory-trend-chart':
-              newComponentStates[item.i] = (item.w === 4 && item.h === 2) ? 'minimized' : 'maximized';
+              newComponentStates[item.i] = (item.w === 3 && item.h === 2) ? 'minimized' : 'maximized';
               break;
             case 'alerts-panel':
               newComponentStates[item.i] = (item.w === 2 && item.h === 2) ? 'minimized' : 'maximized';
@@ -293,8 +438,26 @@ const Dashboard = React.memo(() => {
         let updatedItem;
         switch (componentId) {
           case 'load-card':
+            updatedItem = {
+              ...item,
+              w: newState === 'minimized' ? 1 : 3,
+              h: 1
+            };
+            break;
           case 'cpu-card':
+            updatedItem = {
+              ...item,
+              w: newState === 'minimized' ? 1 : 2,
+              h: 1
+            };
+            break;
           case 'memory-card':
+            updatedItem = {
+              ...item,
+              w: newState === 'minimized' ? 1 : 4,
+              h: 1
+            };
+            break;
           case 'uptime-card':
             updatedItem = {
               ...item,
@@ -303,31 +466,37 @@ const Dashboard = React.memo(() => {
             };
             break;
           case 'cpu-activity-chart':
+            updatedItem = {
+              ...item,
+              w: 5,
+              h: newState === 'minimized' ? 2 : 4
+            };
+            break;
           case 'cpu-trend-chart':
             updatedItem = {
               ...item,
-              w: 4,
+              w: newState === 'minimized' ? 6 : 6,
               h: newState === 'minimized' ? 2 : 4
             };
             break;
           case 'memory-trend-chart':
             updatedItem = {
               ...item,
-              w: newState === 'minimized' ? 4 : 8,
+              w: newState === 'minimized' ? 3 : 6,
               h: 2
             };
             break;
           case 'alerts-panel':
             updatedItem = {
               ...item,
-              w: newState === 'minimized' ? 2 : 4,
+              w: newState === 'minimized' ? 2 : 5,
               h: 2
             };
             break;
           case 'containers-table':
             updatedItem = {
               ...item,
-              h: newState === 'minimized' ? 3 : 6
+              h: newState === 'minimized' ? 3 : 4
             };
             break;
           default:
@@ -337,11 +506,11 @@ const Dashboard = React.memo(() => {
         updatedItem.w = Math.max(1, updatedItem.w);
         updatedItem.h = Math.max(1, updatedItem.h);
         
-        updatedItem.x = Math.max(0, Math.min(updatedItem.x, 7)); // Max x position for 8 columns grid
+        updatedItem.x = Math.max(0, Math.min(updatedItem.x, 10)); // Max x position for 8 columns grid
         updatedItem.y = Math.max(0, updatedItem.y);
         
-        if (updatedItem.x + updatedItem.w > 8) {
-          updatedItem.x = Math.max(0, 8 - updatedItem.w);
+        if (updatedItem.x + updatedItem.w > 11) {
+          updatedItem.x = Math.max(0, 11 - updatedItem.w);
         }
         
         return updatedItem;
@@ -423,7 +592,7 @@ const Dashboard = React.memo(() => {
     };
 
     fetchSystemData();
-    const iv = setInterval(fetchSystemData, 10000); 
+    const iv = setInterval(fetchSystemData, 3000); 
 
     return () => {
       mounted = false;
@@ -501,7 +670,7 @@ const Dashboard = React.memo(() => {
 
    checkBackend();
 
-  const interval = setInterval(checkBackend, 10000);
+  const interval = setInterval(checkBackend, 3000);
 
   return () => {
     mounted = false;
@@ -518,55 +687,9 @@ useEffect(() => {
   }
 }, [backendStatus]);
 
-   const cpuTrendSeries = useMemo(() => {
-    const hasSelectedCores = Object.keys(selectedCores).some(key => selectedCores[key]);
-    const coreKeys = Object.keys(cpuCoreHistory).filter(coreIdx => selectedCores[coreIdx]);
-   
-    if (!hasSelectedCores) return [];
-   
-    let referenceData, startIndex;
-    if (selectedCores.systemCpu && systemCpuHistory.length > 0) {
-      referenceData = systemCpuHistory;
-    } else if (coreKeys.length > 0) {
-      const refCore = coreKeys[0];
-      referenceData = cpuCoreHistory[refCore];
-    } else {
-      return [];
-    }
-   
-    const maxLength = Math.min(referenceData.length, 50);
-    startIndex = referenceData.length - maxLength;
-   
-    return referenceData.slice(startIndex).map((entry, idx) => {
-      const point = {
-        time: entry.timestamp
-          ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          : `Point ${idx}`
-      };
-     
-      if (selectedCores.systemCpu && systemCpuHistory.length > 0) {
-        const systemDataIndex = startIndex + idx;
-        if (systemDataIndex >= 0 && systemDataIndex < systemCpuHistory.length) {
-          point['System CPU'] = systemCpuHistory[systemDataIndex].value;
-        } else {
-          point['System CPU'] = 0;
-        }
-      }
-     
-      coreKeys.forEach(coreIdx => {
-        const coreData = cpuCoreHistory[coreIdx];
-        const dataIndex = startIndex + idx;
-       
-        if (dataIndex >= 0 && dataIndex < coreData.length) {
-          point[`Core ${coreIdx}`] = coreData[dataIndex].value;
-        } else {
-          point[`Core ${coreIdx}`] = 0;
-        }
-      });
-     
-      return point;
-    });
-  }, [selectedCores, cpuCoreHistory, systemCpuHistory]);
+  const cpuTrendSeries = useMemo(() => {
+    return fixedWindowData;
+  }, [fixedWindowData]);
 
   const cpuTrendMax = useMemo(() => {
     if (!cpuTrendSeries.length) return 100;
@@ -589,9 +712,10 @@ useEffect(() => {
     const used = system.memory?.used_bytes || 0;
     const limit = system.memory?.limit_bytes || 0;
     if (!limit) return 0;
-    return Math.round((used / limit) * 100);
+    return Number(((used / limit) * 100).toFixed(1));
   }, [system]);
 
+  const [alertTimestamps, setAlertTimestamps] = useState({});
 
   const memoryTrendSeries = useMemo(() => {
     if (!systemMemoryHistory || systemMemoryHistory.length === 0) return [];
@@ -600,12 +724,23 @@ useEffect(() => {
     const startIndex = systemMemoryHistory.length - maxLength;
    
     return systemMemoryHistory.slice(startIndex).map((entry, idx) => ({
-      time: entry.timestamp
-        ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        : `t-${maxLength - idx - 1}`,
+      time: entry.timestamp || `t-${maxLength - idx - 1}`,
       value: entry.value
     }));
   }, [systemMemoryHistory]);
+
+  const memoryTrendMax = useMemo(() => {
+    if (!fixedMemoryWindowData.length) return 100;
+
+    let max = 0;
+    for (const row of fixedMemoryWindowData) {
+      const value = typeof row.value === "number" ? row.value : Number(row.value);
+      if (Number.isFinite(value)) max = Math.max(max, value);
+    }
+
+    const padded = max + Math.max(5, max * 0.1);
+    return Math.min(100, Math.ceil(padded));
+  }, [fixedMemoryWindowData]);
 
 
   const derivedAlerts = useMemo(() => {
@@ -623,37 +758,119 @@ useEffect(() => {
       }
     };
 
-
     const alerts = [];
 
+    const currentAlerts = new Set();
 
     if (events && events.length) {
       events.slice(0, 10).forEach((ev) => {
+        const eventKey = `event_${ev.id || ev.timestamp || JSON.stringify(ev)}`;
+        currentAlerts.add(eventKey);
+      
+        if (!alertTimestamps[eventKey]) {
+          const eventTime = ev.time || ev.timestamp || new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+          setAlertTimestamps(prev => ({
+            ...prev,
+            [eventKey]: eventTime
+          }));
+        }
+      
         alerts.push({
           severity: "info",
-          time: ev.time || ev.timestamp || "",
+          time: alertTimestamps[eventKey] || (ev.time || ev.timestamp || ""),
           message: ev.message ?? ev.msg ?? JSON.stringify(ev),
         });
       });
     }
 
-
     containers.forEach((c) => {
       if (!c) return;
       const name = c.name || c.id;
+      
       if ((c.status || "").toLowerCase() !== "running") {
-        alerts.push({ severity: "critical", time: "", message: `${name} is ${c.status || "stopped"}` });
+        const statusKey = `container_status_${c.id}_${c.status}`;
+        currentAlerts.add(statusKey);
+      
+        if (!alertTimestamps[statusKey]) {
+          const statusTime = new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+          setAlertTimestamps(prev => ({
+            ...prev,
+            [statusKey]: statusTime
+          }));
+        }
+      
+        alerts.push({ 
+          severity: "critical", 
+          time: alertTimestamps[statusKey] || "", 
+          message: `${name} is ${c.status || "stopped"}` 
+        });
       }
+      
       const cpu = Number(c.cpu_percent ?? 0);
       if (cpu && cpu >= 75) {
-        alerts.push({ severity: "warning", time: "", message: `${name} high CPU ${cpu}%` });
+        const cpuKey = `container_cpu_high_${c.id}`;
+        currentAlerts.add(cpuKey);
+      
+        if (!alertTimestamps[cpuKey]) {
+          const cpuTime = new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+          setAlertTimestamps(prev => ({
+            ...prev,
+            [cpuKey]: cpuTime
+          }));
+        }
+      
+        alerts.push({ 
+          severity: "warning", 
+          time: alertTimestamps[cpuKey] || "", 
+          message: `${name} high CPU ${cpu}%` 
+        });
       }
+      
       const memPctC = parseMemPercent(c.mem_usage) ?? (c.mem_percent ?? null);
       if (memPctC && memPctC >= 75) {
-        alerts.push({ severity: "warning", time: "", message: `${name} high MEM ${memPctC}%` });
+        const memKey = `container_mem_high_${c.id}`;
+        currentAlerts.add(memKey);
+      
+        if (!alertTimestamps[memKey]) {
+          const memTime = new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+          setAlertTimestamps(prev => ({
+            ...prev,
+            [memKey]: memTime
+          }));
+        }
+      
+        alerts.push({ 
+          severity: "warning", 
+          time: alertTimestamps[memKey] || "", 
+          message: `${name} high MEM ${memPctC}%` 
+        });
       }
     });
 
+    const cleanupKeys = Object.keys(alertTimestamps).filter(key => !currentAlerts.has(key));
+    if (cleanupKeys.length > 0) {
+      setAlertTimestamps(prev => {
+        const newTimestamps = { ...prev };
+        cleanupKeys.forEach(key => delete newTimestamps[key]);
+        return newTimestamps;
+      });
+    }
 
     const seen = new Set();
     const unique = [];
@@ -666,7 +883,7 @@ useEffect(() => {
       if (unique.length >= 20) break;
     }
     return unique;
-  }, [events, containers]);
+  }, [events, containers, alertTimestamps]);
 
 
   const handleCoreToggle = useCallback((coreIdx) => {
@@ -816,11 +1033,7 @@ useEffect(() => {
             {loadingSys || !system ? (
               <CircleMetric value={0} label="System CPU" size={componentStates["cpu-card"] === "minimized" ? 32 : 64} />
             ) : (
-              <CircleMetric
-                value={Math.round(system?.cpu?.total_percent || 0)}
-                label="System CPU"
-                size={componentStates["cpu-card"] === "minimized" ? 32 : 64}
-              />
+              <CircleMetric value={Number((system?.cpu?.total_percent || 0).toFixed(1))} label="System CPU" size={componentStates['cpu-card'] === 'minimized' ? 32 : 64} />
             )}
           </div>
         </div>
@@ -938,7 +1151,7 @@ useEffect(() => {
                       <div className="h-3 bg-[#2496ED]" style={{ width: `${Math.max(displayValue, 0.5)}%` }} />
                     </div>
                   </div>
-                  <div className="w-12 text-right text-xs font-medium">{Math.round(displayValue)}%</div>
+                  <div className="w-12 text-right text-xs font-medium">{Number(displayValue.toFixed(1))}%</div>
                 </div>
               );
             })
@@ -968,24 +1181,50 @@ useEffect(() => {
           </div>
           <div className="grow min-h-[100px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={cpuTrendSeries}>
+              <LineChart data={fixedWindowData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="time" stroke="#888" tick={{ fontSize: 12 }} />
+                <XAxis 
+                  dataKey="index" 
+                  stroke="#888" 
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(index) => {
+                    const dataPoint = cpuTrendSeries[index];
+                    if (dataPoint && dataPoint.time) {
+                      return dataPoint.time;
+                    }
+                    return '';
+                  }}
+                  axisLine={true}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
                 <YAxis
                   stroke="#888"
                   domain={[0, cpuTrendMax]}
                   tick={{ fontSize: 12 }}
                   width={30}
                 />
-                <Tooltip formatter={(value, name) => [`${Math.round(value)}%`, name]} />
+                <Tooltip 
+                  formatter={(value, name) => [`${Number(value).toFixed(1)}%`, name]}
+                  labelFormatter={(index) => {
+                    const dataPoint = cpuTrendSeries[index];
+                    if (dataPoint && dataPoint.time) {
+                      return `Time: ${dataPoint.time}`;
+                    }
+                    return `Point ${index}`;
+                  }}
+                />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
                 {selectedCores.systemCpu && (
                   <Line
                     type="monotone"
-                    dataKey="System CPU"
+                    dataKey="SystemCPU"
+                    name="System CPU"
                     stroke="#ff6b6b"
                     dot={false}
                     strokeWidth={2}
+                    isAnimationActive={false}
                   />
                 )}
                 {system?.cpu?.per_core?.map((_, coreIdx) =>
@@ -993,10 +1232,12 @@ useEffect(() => {
                     <Line
                       key={coreIdx}
                       type="monotone"
-                      dataKey={`Core ${coreIdx}`}
+                      dataKey={`Core${coreIdx}`}
+                      name={`Core ${coreIdx}`}
                       stroke={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][coreIdx % 6]}
                       dot={false}
                       strokeWidth={2}
+                      isAnimationActive={false}
                     />
                   ) : null
                 )}
@@ -1009,26 +1250,64 @@ useEffect(() => {
 
       {/* Memory trend */}
       {visibleComponents["memory-trend-chart"] && (
-  <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
-    <div className="flex justify-between items-start mb-2">
-      <div className="text-sm font-medium">System Memory trend</div>
-      <button
-        onClick={() => toggleComponentState("memory-trend-chart")}
-        className="text-xs text-gray-500 hover:text-gray-700"
-      >
-        {getButtonIcon("memory-trend-chart")}
-      </button>
-    </div>
+        <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
+          <div className="flex justify-between items-start mb-2">
+            <div className="text-sm font-medium">System Memory trend</div>
+            <button
+              onClick={() => toggleComponentState("memory-trend-chart")}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              {getButtonIcon("memory-trend-chart")}
+            </button>
+          </div>
 
-    {loadingSys || !system ? (
-      <div className="flex items-center justify-center grow text-gray-500">
-        Loading memory trend data...
-      </div>
-    ) : (
-      <ChartCard title="System Memory trend" data={memoryTrendSeries} type="area" showTitle={false} />
-    )}
-  </div>
-)}
+          {loadingSys || !system ? (
+            <div className="flex items-center justify-center grow text-gray-500">
+              Loading memory trend data...
+            </div>
+          ) : (
+            <div className="w-full flex-grow min-h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={fixedMemoryWindowData}>
+                  <defs>
+                    <linearGradient id="memoryGrad" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#2496ED" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#2496ED" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="index"
+                    stroke="#888"
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(index) => (memoryTrendSeries[index]?.time ? memoryTrendSeries[index].time : "")}
+                    axisLine={true}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis stroke="#888" domain={[0, memoryTrendMax]} tick={{ fontSize: 12 }} width={30} />
+                  <Tooltip
+                    formatter={(value) => [`${Number(value).toFixed(1)}%`, "Memory"]}
+                    labelFormatter={(index) =>
+                      memoryTrendSeries[index]?.time ? `Time: ${memoryTrendSeries[index].time}` : `Point ${index}`
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    name="Memory Usage"
+                    stroke="#2496ED"
+                    fill="url(#memoryGrad)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+
 
 
     {/* Alerts panel */}

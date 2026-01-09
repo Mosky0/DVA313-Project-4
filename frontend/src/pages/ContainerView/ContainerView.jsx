@@ -22,6 +22,55 @@ export default function ContainerView() {
   const [statsError, setStatsError] = useState("");
   const [isStopping, setIsStopping] = useState(false);
   const [cpuHistory, setCpuHistory] = useState([]);
+  
+  const [fixedCpuWindowData, setFixedCpuWindowData] = useState(
+    Array(50).fill().map((_, index) => ({
+      index: index,
+      time: null,
+      value: 0
+    }))
+  );
+  
+  const [cpuCurrentPosition, setCpuCurrentPosition] = useState(0);
+  const [isCpuWindowFull, setIsCpuWindowFull] = useState(false);
+  
+  useEffect(() => {
+    if (!cpuHistory || cpuHistory.length === 0) {
+      setFixedCpuWindowData(
+        Array(50).fill().map((_, index) => ({
+          index: index,
+          time: null,
+          value: 0
+        }))
+      );
+      setCpuCurrentPosition(0);
+      setIsCpuWindowFull(false);
+      return;
+    }
+    
+    const maxPoints = 50;
+    const availablePoints = cpuHistory.length;
+    const pointsToUse = Math.min(availablePoints, maxPoints);
+    
+    const windowData = Array(50).fill().map((_, index) => ({
+      index: index,
+      time: null,
+      value: 0
+    }));
+    
+    for (let i = 0; i < pointsToUse; i++) {
+      const dataIndex = availablePoints - pointsToUse + i;
+      if (dataIndex < cpuHistory.length) {
+        const point = cpuHistory[dataIndex];
+        windowData[i].value = point?.value || 0;
+        windowData[i].time = point?.time || null;
+      }
+    }
+    
+    setFixedCpuWindowData(windowData);
+    setCpuCurrentPosition(pointsToUse);
+    setIsCpuWindowFull(pointsToUse >= 50);
+  }, [cpuHistory]);
   const [filePathInput, setFilePathInput] = useState("");
   const [fileTabs, setFileTabs] = useState([]);
   const [logs, setLogs] = useState([]); // array of { msg: string, seenAt: number }
@@ -695,25 +744,48 @@ export default function ContainerView() {
               </p>
               <div className="w-full h-32">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={cpuHistory}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="time"
-                      stroke="#555"
-                      hide={cpuHistory.length === 0}
+                  <LineChart data={fixedCpuWindowData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis 
+                      dataKey="index" 
+                      stroke="#888" 
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(index) => {
+                        const dataPoint = fixedCpuWindowData[index];
+                        if (dataPoint && dataPoint.time) {
+                          return dataPoint.time;
+                        }
+                        return '';
+                      }}
+                      axisLine={true}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
                     />
                     <YAxis
-                      stroke="#555"
+                      stroke="#888"
                       domain={[0, cpuTrendMax]}
-                      tickFormatter={(value) => `${value}%`}
+                      tick={{ fontSize: 12 }}
+                      width={30}
                     />
-                    <Tooltip />
+                    <Tooltip 
+                      formatter={(value) => [`${Number(value).toFixed(1)}%`, 'CPU']}
+                      labelFormatter={(index) => {
+                        const dataPoint = fixedCpuWindowData[index];
+                        if (dataPoint && dataPoint.time) {
+                          return `Time: ${dataPoint.time}`;
+                        }
+                        return `Point ${index}`;
+                      }}
+                    />
                     <Line
                       type="monotone"
                       dataKey="value"
+                      name="CPU Usage"
                       stroke="#3b82f6"
                       strokeWidth={2}
                       dot={false}
+                      isAnimationActive={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -801,12 +873,12 @@ export default function ContainerView() {
                               <td className="py-2 px-3">{proc.pid || "—"}</td>
                               <td className="px-3">
                                 {proc.cpu_percent != null
-                                  ? `${proc.cpu_percent}%`
+                                  ? `${Number(proc.cpu_percent).toFixed(1)}%`
                                   : "—"}
                               </td>
                               <td className="px-3">
                                 {proc.mem_percent != null
-                                  ? `${proc.mem_percent}%`
+                                  ? `${Number(proc.mem_percent).toFixed(1)}%`
                                   : "—"}
                               </td>
                               <td className="px-3">{proc.state || "—"}</td>
