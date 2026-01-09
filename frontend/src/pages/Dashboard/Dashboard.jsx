@@ -119,6 +119,7 @@ const Dashboard = React.memo(() => {
     'containers-table': 'maximized'
   });
 
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const wasDisconnected = useRef(false);
 
   const [fixedWindowData, setFixedWindowData] = useState(
@@ -928,49 +929,98 @@ useEffect(() => {
   </div>
 )}
 
-      <div className="flex justify-start mb-4">
+      <div className="flex justify-start mb-4 relative gap-2">
         <button 
-          onClick={resetToDefaultLayout}
+          onClick={() => {
+            resetToDefaultLayout();
+            
+            setVisibleComponents(prev => {
+              const allVisible = {};
+              Object.keys(prev).forEach(key => {
+                allVisible[key] = true;
+              });
+              
+              setLayout(prevLayout => {
+                const allItems = [...prevLayout];
+                Object.keys(allVisible).forEach(componentId => {
+                  const existingItem = prevLayout.find(item => item.i === componentId);
+                  if (!existingItem) {
+                    const defaultItem = defaultLayout.find(item => item.i === componentId);
+                    if (defaultItem) {
+                      allItems.push({ ...defaultItem });
+                    }
+                  }
+                });
+                return allItems;
+              });
+              
+              return allVisible;
+            });
+          }}
           className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
         >
           Reset Layout
         </button>
-      </div>
-
-      {/* Visibility Toggles */}
-      <div className="flex justify-start mb-4">
-        {Object.keys(visibleComponents).map(componentId => (
-          <div key={componentId} className="flex items-center mr-4">
-            <input
-              type="checkbox"
-              checked={visibleComponents[componentId]}
-              onChange={() => {
-                // Use functional updates to avoid stale state and ensure correct add/remove behavior
-                setVisibleComponents(prev => {
-                  const nextVisible = !prev[componentId];
-                  setLayout(prevLayout => {
-                    if (nextVisible) {
-                      // Restoring original size by re-adding the item's default layout
-                      const defaultItem = defaultLayout.find(item => item.i === componentId);
-                      if (!defaultItem) return prevLayout;
-                      const without = prevLayout.filter(item => item.i !== componentId);
-                      return [...without, { ...defaultItem }];
-                    } else {
-                      // Hiding: remove from layout
-                      return prevLayout.filter(item => item.i !== componentId);
-                    }
-                  });
-                  return {
-                    ...prev,
-                    [componentId]: nextVisible
-                  };
-                });
-              }}
-              className="w-4 h-4 cursor-pointer"
-            />
-            <label className="ml-2 text-sm">{componentId}</label>
+        
+        <button 
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          className="px-3 py-1.5 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 transition-colors flex items-center text-sm"
+        >
+          Toggle Dashboard Cards
+          <svg 
+            className={`ml-1.5 w-3.5 h-3.5 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        {isDropdownOpen && (
+          <div className="absolute top-full left-0 mt-1 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50 p-4">
+            <div className="space-y-3">
+              {Object.keys(visibleComponents).map(componentId => (
+                <div key={componentId} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={visibleComponents[componentId]}
+                    onChange={() => {
+                      setVisibleComponents(prev => {
+                        const nextVisible = !prev[componentId];
+                        setLayout(prevLayout => {
+                          if (nextVisible) {
+                            const defaultItem = defaultLayout.find(item => item.i === componentId);
+                            if (!defaultItem) return prevLayout;
+                            const without = prevLayout.filter(item => item.i !== componentId);
+                            return [...without, { ...defaultItem }];
+                          } else {
+                            return prevLayout.filter(item => item.i !== componentId);
+                          }
+                        });
+                        return {
+                          ...prev,
+                          [componentId]: nextVisible
+                        };
+                      });
+                    }}
+                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <label className="ml-3 text-sm font-medium text-gray-700 capitalize cursor-pointer">
+                    {componentId.replace(/-/g, ' ')}
+                  </label>
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
+        )}
+        
+        {isDropdownOpen && (
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setIsDropdownOpen(false)}
+          />
+        )}
       </div>
       
       {/* Grid Layout */}
