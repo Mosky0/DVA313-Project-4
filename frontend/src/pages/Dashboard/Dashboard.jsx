@@ -92,6 +92,7 @@ const Dashboard = React.memo(() => {
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
   const [systemCpuHistory, setSystemCpuHistory] = useState([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [backendStatus, setBackendStatus] = useState("connected");
   const [isEditMode, setIsEditMode] = useState(true);
   const [layout, setLayout] = useState([]);
@@ -142,7 +143,14 @@ const Dashboard = React.memo(() => {
   const [isWindowFull, setIsWindowFull] = useState(false);
 
   useEffect(() => {
-    if (!systemCpuHistory.length && !Object.keys(cpuCoreHistory).length) {
+    
+    if (!isDataLoaded) return;
+    
+    const hasSystemData = systemCpuHistory && systemCpuHistory.length > 0;
+    const hasCoreData = Object.keys(cpuCoreHistory).length > 0 && 
+                       Object.values(cpuCoreHistory).some(coreData => coreData && coreData.length > 0);
+    
+    if (!hasSystemData && !hasCoreData) {
       setFixedWindowData(
         Array(bufferSize).fill().map((_, index) => ({
           index: index,
@@ -160,57 +168,71 @@ const Dashboard = React.memo(() => {
       setIsWindowFull(false);
       return;
     }
-
-    setFixedWindowData(prevData => {
-      const newData = [...prevData];
-      
-      const newPoint = { 
-        index: isWindowFull ? bufferSize - 1 : currentPosition,
-        time: null
+    
+    const windowData = Array(bufferSize).fill().map((_, index) => ({
+      index: index,
+      time: null,
+      SystemCPU: 0,
+      Core0: 0,
+      Core1: 0,
+      Core2: 0,
+      Core3: 0,
+      Core4: 0,
+      Core5: 0
+    }));
+    
+    let minDataPoints = bufferSize;
+    if (hasSystemData) {
+      minDataPoints = Math.min(minDataPoints, systemCpuHistory.length);
+    }
+    if (hasCoreData) {
+      Object.values(cpuCoreHistory).forEach(coreData => {
+        if (coreData && coreData.length > 0) {
+          minDataPoints = Math.min(minDataPoints, coreData.length);
+        }
+      });
+    }
+    
+    const pointsToUse = Math.min(minDataPoints, bufferSize);
+    
+    for (let i = 0; i < pointsToUse; i++) {
+      const dataIndex = minDataPoints - pointsToUse + i;
+      const dataPoint = {
+        index: i,
+        time: null,
+        SystemCPU: 0,
+        Core0: 0,
+        Core1: 0,
+        Core2: 0,
+        Core3: 0,
+        Core4: 0,
+        Core5: 0
       };
       
-      if (system?.cpu?.total_percent !== undefined) {
-        newPoint.SystemCPU = system.cpu.total_percent;
-        if (systemCpuHistory.length > 0) {
-          const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
-          newPoint.time = latestSystem?.timestamp;
-        }
-      } else if (systemCpuHistory.length > 0) {
-        const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
-        newPoint.SystemCPU = latestSystem?.value || 0;
-        newPoint.time = latestSystem?.timestamp || null;
+      if (hasSystemData && dataIndex < systemCpuHistory.length) {
+        const systemPoint = systemCpuHistory[dataIndex];
+        dataPoint.SystemCPU = systemPoint?.value || 0;
+        dataPoint.time = systemPoint?.timestamp || null;
       }
       
-      Object.keys(cpuCoreHistory).forEach(coreIdx => {
-        const coreData = cpuCoreHistory[coreIdx];
-        if (coreData && coreData.length > 0) {
-          const latestCore = coreData[coreData.length - 1];
-          newPoint[`Core${coreIdx}`] = latestCore?.value || 0;
+      Object.entries(cpuCoreHistory).forEach(([coreIdx, coreData]) => {
+        if (coreData && coreData.length > 0 && dataIndex < coreData.length) {
+          const corePoint = coreData[dataIndex];
+          dataPoint[`Core${coreIdx}`] = corePoint?.value || 0;
           
-          if (!newPoint.time && latestCore?.timestamp) {
-            newPoint.time = latestCore.timestamp;
+          if (!dataPoint.time && corePoint?.timestamp) {
+            dataPoint.time = corePoint.timestamp;
           }
         }
       });
       
-      if (isWindowFull) {
-        for (let i = 0; i < bufferSize - 1; i++) {
-          newData[i] = { ...newData[i + 1], index: i };
-        }
-        newData[bufferSize - 1] = newPoint;
-      } else {
-        newData[currentPosition] = newPoint;
-        
-        if (currentPosition >= bufferSize - 1) {
-          setIsWindowFull(true);
-        } else {
-          setCurrentPosition(prev => prev + 1);
-        }
-      }
-      
-      return newData;
-    });
-  }, [systemCpuHistory, cpuCoreHistory, bufferSize]);
+      windowData[i] = dataPoint;
+    }
+    
+    setFixedWindowData(windowData);
+    setCurrentPosition(pointsToUse);
+    setIsWindowFull(pointsToUse >= bufferSize);
+  }, [isDataLoaded, systemCpuHistory, cpuCoreHistory, bufferSize]);
 
   const [fixedMemoryWindowData, setFixedMemoryWindowData] = useState(
     Array(bufferSize).fill().map((_, index) => ({
@@ -224,6 +246,8 @@ const Dashboard = React.memo(() => {
   const [isMemoryWindowFull, setIsMemoryWindowFull] = useState(false);
 
   useEffect(() => {
+    if (!isDataLoaded) return;
+    
     if (!systemMemoryHistory || systemMemoryHistory.length === 0) {
       setFixedMemoryWindowData(
         Array(bufferSize).fill().map((_, index) => ({
@@ -236,36 +260,31 @@ const Dashboard = React.memo(() => {
       setIsMemoryWindowFull(false);
       return;
     }
-
-    setFixedMemoryWindowData(prevData => {
-      const newData = [...prevData];
-      
-      const latestMemory = systemMemoryHistory[systemMemoryHistory.length - 1];
-      
-      const newPoint = { 
-        index: isMemoryWindowFull ? bufferSize - 1 : memoryCurrentPosition,
-        time: latestMemory?.timestamp || null,
-        value: latestMemory?.value || 0
-      };
-      
-      if (isMemoryWindowFull) {
-        for (let i = 0; i < bufferSize - 1; i++) {
-          newData[i] = { ...newData[i + 1], index: i };
-        }
-        newData[bufferSize - 1] = newPoint;
-      } else {
-        newData[memoryCurrentPosition] = newPoint;
-        
-        if (memoryCurrentPosition >= bufferSize - 1) {
-          setIsMemoryWindowFull(true);
-        } else {
-          setMemoryCurrentPosition(prev => prev + 1);
-        }
+    
+    const windowData = Array(bufferSize).fill().map((_, index) => ({
+      index: index,
+      time: null,
+      value: 0
+    }));
+    
+    const pointsToUse = Math.min(systemMemoryHistory.length, bufferSize);
+    
+    for (let i = 0; i < pointsToUse; i++) {
+      const dataIndex = systemMemoryHistory.length - pointsToUse + i;
+      if (dataIndex < systemMemoryHistory.length) {
+        const memoryPoint = systemMemoryHistory[dataIndex];
+        windowData[i] = {
+          index: i,
+          time: memoryPoint?.timestamp || null,
+          value: memoryPoint?.value || 0
+        };
       }
-      
-      return newData;
-    });
-  }, [systemMemoryHistory, bufferSize]);
+    }
+    
+    setFixedMemoryWindowData(windowData);
+    setMemoryCurrentPosition(pointsToUse);
+    setIsMemoryWindowFull(pointsToUse >= bufferSize);
+  }, [isDataLoaded, systemMemoryHistory, bufferSize]);
 
   // Define default layout
   const defaultLayout = [
@@ -586,6 +605,8 @@ const Dashboard = React.memo(() => {
             setCPUCoreHistory(historyData.cpuCoreHistories || {});
             setSystemMemoryHistory(historyData.memoryHistory || []);
             setSystemCpuHistory(historyData.systemCpuHistory || []);
+            
+            setIsDataLoaded(true);
           }
         }
 
