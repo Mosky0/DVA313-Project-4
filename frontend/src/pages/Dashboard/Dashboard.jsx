@@ -121,9 +121,11 @@ const Dashboard = React.memo(() => {
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const wasDisconnected = useRef(false);
+  
+  const [bufferSize, setBufferSize] = useState(50); 
 
   const [fixedWindowData, setFixedWindowData] = useState(
-    Array(50).fill().map((_, index) => ({
+    Array(bufferSize).fill().map((_, index) => ({
       index: index,
       time: null,
       SystemCPU: 0,
@@ -142,7 +144,7 @@ const Dashboard = React.memo(() => {
   useEffect(() => {
     if (!systemCpuHistory.length && !Object.keys(cpuCoreHistory).length) {
       setFixedWindowData(
-        Array(50).fill().map((_, index) => ({
+        Array(bufferSize).fill().map((_, index) => ({
           index: index,
           time: null,
           SystemCPU: 0,
@@ -163,7 +165,7 @@ const Dashboard = React.memo(() => {
       const newData = [...prevData];
       
       const newPoint = { 
-        index: isWindowFull ? 49 : currentPosition,
+        index: isWindowFull ? bufferSize - 1 : currentPosition,
         time: null
       };
       
@@ -192,14 +194,14 @@ const Dashboard = React.memo(() => {
       });
       
       if (isWindowFull) {
-        for (let i = 0; i < 49; i++) {
+        for (let i = 0; i < bufferSize - 1; i++) {
           newData[i] = { ...newData[i + 1], index: i };
         }
-        newData[49] = newPoint;
+        newData[bufferSize - 1] = newPoint;
       } else {
         newData[currentPosition] = newPoint;
         
-        if (currentPosition >= 49) {
+        if (currentPosition >= bufferSize - 1) {
           setIsWindowFull(true);
         } else {
           setCurrentPosition(prev => prev + 1);
@@ -208,10 +210,10 @@ const Dashboard = React.memo(() => {
       
       return newData;
     });
-  }, [systemCpuHistory, cpuCoreHistory]);
+  }, [systemCpuHistory, cpuCoreHistory, bufferSize]);
 
   const [fixedMemoryWindowData, setFixedMemoryWindowData] = useState(
-    Array(50).fill().map((_, index) => ({
+    Array(bufferSize).fill().map((_, index) => ({
       index: index,
       time: null,
       value: 0
@@ -224,7 +226,7 @@ const Dashboard = React.memo(() => {
   useEffect(() => {
     if (!systemMemoryHistory || systemMemoryHistory.length === 0) {
       setFixedMemoryWindowData(
-        Array(50).fill().map((_, index) => ({
+        Array(bufferSize).fill().map((_, index) => ({
           index: index,
           time: null,
           value: 0
@@ -241,20 +243,20 @@ const Dashboard = React.memo(() => {
       const latestMemory = systemMemoryHistory[systemMemoryHistory.length - 1];
       
       const newPoint = { 
-        index: isMemoryWindowFull ? 49 : memoryCurrentPosition,
+        index: isMemoryWindowFull ? bufferSize - 1 : memoryCurrentPosition,
         time: latestMemory?.timestamp || null,
         value: latestMemory?.value || 0
       };
       
       if (isMemoryWindowFull) {
-        for (let i = 0; i < 49; i++) {
+        for (let i = 0; i < bufferSize - 1; i++) {
           newData[i] = { ...newData[i + 1], index: i };
         }
-        newData[49] = newPoint;
+        newData[bufferSize - 1] = newPoint;
       } else {
         newData[memoryCurrentPosition] = newPoint;
         
-        if (memoryCurrentPosition >= 49) {
+        if (memoryCurrentPosition >= bufferSize - 1) {
           setIsMemoryWindowFull(true);
         } else {
           setMemoryCurrentPosition(prev => prev + 1);
@@ -263,7 +265,7 @@ const Dashboard = React.memo(() => {
       
       return newData;
     });
-  }, [systemMemoryHistory]);
+  }, [systemMemoryHistory, bufferSize]);
 
   // Define default layout
   const defaultLayout = [
@@ -545,12 +547,17 @@ const Dashboard = React.memo(() => {
 
     const fetchSystemData = async () => {
       try {
-        const [sysRes, historyRes, latestSysRes] = await Promise.all([
+        const [sysRes, historyRes, latestSysRes, bufferConfigRes] = await Promise.all([
           fetch(`/api/system`),
           fetch(`/api/system/metrics/history`),
-          fetch(`/api/system/metrics/latest`)
+          fetch(`/api/system/metrics/latest`),
+          fetch(`/api/system/buffer-config`)
         ]);
 
+        const bufferConfigData = bufferConfigRes.ok ? await bufferConfigRes.json() : null;
+        if (bufferConfigData && bufferConfigData.buffer_size) {
+          setBufferSize(bufferConfigData.buffer_size);
+        }
 
         const sysData = sysRes.ok ? await sysRes.json() : null;
         if (sysData) {
