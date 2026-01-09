@@ -335,7 +335,7 @@ def container_logs(container_id):
         container = docker_client.containers.get(container_id)
 
         raw = container.logs(tail=50).decode("utf-8", errors="replace")
-        now = datetime.now(ZoneInfo("Europe/Stockholm")).isoformat()
+        now = datetime.datetime.now(ZoneInfo("Europe/Stockholm")).isoformat()
 
         lines = [f"[{now}] {line}" for line in raw.splitlines()]
 
