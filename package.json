@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "tzdata": "^1.0.47"
+  }
+}
