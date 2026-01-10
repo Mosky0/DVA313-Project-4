@@ -348,6 +348,25 @@ def latest_system_metrics():
         logger.error(f"Error retrieving latest system metrics: {e}")
         return jsonify({"error": str(e)}), 500
 
+# ---------------- BUFFER CONFIGURATION ----------------
+@metrics_bp.route("/system/buffer-config")
+def get_buffer_config():
+    """Get buffer settings."""
+    try:
+        from app.utils.ringBuffer import DEFAULT_BUFFER_SIZE
+        import os
+        
+        config = {
+            "buffer_size": DEFAULT_BUFFER_SIZE,
+            "storage_limit_minutes": int(os.getenv('METRICS_STORAGE_LIMIT_TIME', 30)),
+            "update_interval_seconds": int(os.getenv('METRICS_UPDATE_INTERVAL', 5))
+        }
+        
+        return jsonify(config)
+    except Exception as e:
+        logger.error(f"Error retrieving buffer configuration: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # ---------------- CONTAINER LOGS ----------------
 @metrics_bp.route("/containers/<container_id>/logs")
 def container_logs(container_id):

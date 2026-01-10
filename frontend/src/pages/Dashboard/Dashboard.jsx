@@ -92,6 +92,7 @@ const Dashboard = React.memo(() => {
   const [cpuCoreHistory, setCPUCoreHistory] = useState({});
   const [systemMemoryHistory, setSystemMemoryHistory] = useState([]);
   const [systemCpuHistory, setSystemCpuHistory] = useState([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [backendStatus, setBackendStatus] = useState("connected");
   const [isEditMode, setIsEditMode] = useState(true);
   const [layout, setLayout] = useState([]);
@@ -119,10 +120,13 @@ const Dashboard = React.memo(() => {
     'containers-table': 'maximized'
   });
 
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const wasDisconnected = useRef(false);
+  
+  const [bufferSize, setBufferSize] = useState(50); 
 
   const [fixedWindowData, setFixedWindowData] = useState(
-    Array(50).fill().map((_, index) => ({
+    Array(bufferSize).fill().map((_, index) => ({
       index: index,
       time: null,
       SystemCPU: 0,
@@ -139,9 +143,16 @@ const Dashboard = React.memo(() => {
   const [isWindowFull, setIsWindowFull] = useState(false);
 
   useEffect(() => {
-    if (!systemCpuHistory.length && !Object.keys(cpuCoreHistory).length) {
+    
+    if (!isDataLoaded) return;
+    
+    const hasSystemData = systemCpuHistory && systemCpuHistory.length > 0;
+    const hasCoreData = Object.keys(cpuCoreHistory).length > 0 && 
+                       Object.values(cpuCoreHistory).some(coreData => coreData && coreData.length > 0);
+    
+    if (!hasSystemData && !hasCoreData) {
       setFixedWindowData(
-        Array(50).fill().map((_, index) => ({
+        Array(bufferSize).fill().map((_, index) => ({
           index: index,
           time: null,
           SystemCPU: 0,
@@ -157,60 +168,74 @@ const Dashboard = React.memo(() => {
       setIsWindowFull(false);
       return;
     }
-
-    setFixedWindowData(prevData => {
-      const newData = [...prevData];
-      
-      const newPoint = { 
-        index: isWindowFull ? 49 : currentPosition,
-        time: null
+    
+    const windowData = Array(bufferSize).fill().map((_, index) => ({
+      index: index,
+      time: null,
+      SystemCPU: 0,
+      Core0: 0,
+      Core1: 0,
+      Core2: 0,
+      Core3: 0,
+      Core4: 0,
+      Core5: 0
+    }));
+    
+    let minDataPoints = bufferSize;
+    if (hasSystemData) {
+      minDataPoints = Math.min(minDataPoints, systemCpuHistory.length);
+    }
+    if (hasCoreData) {
+      Object.values(cpuCoreHistory).forEach(coreData => {
+        if (coreData && coreData.length > 0) {
+          minDataPoints = Math.min(minDataPoints, coreData.length);
+        }
+      });
+    }
+    
+    const pointsToUse = Math.min(minDataPoints, bufferSize);
+    
+    for (let i = 0; i < pointsToUse; i++) {
+      const dataIndex = minDataPoints - pointsToUse + i;
+      const dataPoint = {
+        index: i,
+        time: null,
+        SystemCPU: 0,
+        Core0: 0,
+        Core1: 0,
+        Core2: 0,
+        Core3: 0,
+        Core4: 0,
+        Core5: 0
       };
       
-      if (system?.cpu?.total_percent !== undefined) {
-        newPoint.SystemCPU = system.cpu.total_percent;
-        if (systemCpuHistory.length > 0) {
-          const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
-          newPoint.time = latestSystem?.timestamp;
-        }
-      } else if (systemCpuHistory.length > 0) {
-        const latestSystem = systemCpuHistory[systemCpuHistory.length - 1];
-        newPoint.SystemCPU = latestSystem?.value || 0;
-        newPoint.time = latestSystem?.timestamp || null;
+      if (hasSystemData && dataIndex < systemCpuHistory.length) {
+        const systemPoint = systemCpuHistory[dataIndex];
+        dataPoint.SystemCPU = systemPoint?.value || 0;
+        dataPoint.time = systemPoint?.timestamp || null;
       }
       
-      Object.keys(cpuCoreHistory).forEach(coreIdx => {
-        const coreData = cpuCoreHistory[coreIdx];
-        if (coreData && coreData.length > 0) {
-          const latestCore = coreData[coreData.length - 1];
-          newPoint[`Core${coreIdx}`] = latestCore?.value || 0;
+      Object.entries(cpuCoreHistory).forEach(([coreIdx, coreData]) => {
+        if (coreData && coreData.length > 0 && dataIndex < coreData.length) {
+          const corePoint = coreData[dataIndex];
+          dataPoint[`Core${coreIdx}`] = corePoint?.value || 0;
           
-          if (!newPoint.time && latestCore?.timestamp) {
-            newPoint.time = latestCore.timestamp;
+          if (!dataPoint.time && corePoint?.timestamp) {
+            dataPoint.time = corePoint.timestamp;
           }
         }
       });
       
-      if (isWindowFull) {
-        for (let i = 0; i < 49; i++) {
-          newData[i] = { ...newData[i + 1], index: i };
-        }
-        newData[49] = newPoint;
-      } else {
-        newData[currentPosition] = newPoint;
-        
-        if (currentPosition >= 49) {
-          setIsWindowFull(true);
-        } else {
-          setCurrentPosition(prev => prev + 1);
-        }
-      }
-      
-      return newData;
-    });
-  }, [systemCpuHistory, cpuCoreHistory]);
+      windowData[i] = dataPoint;
+    }
+    
+    setFixedWindowData(windowData);
+    setCurrentPosition(pointsToUse);
+    setIsWindowFull(pointsToUse >= bufferSize);
+  }, [isDataLoaded, systemCpuHistory, cpuCoreHistory, bufferSize]);
 
   const [fixedMemoryWindowData, setFixedMemoryWindowData] = useState(
-    Array(50).fill().map((_, index) => ({
+    Array(bufferSize).fill().map((_, index) => ({
       index: index,
       time: null,
       value: 0
@@ -221,9 +246,11 @@ const Dashboard = React.memo(() => {
   const [isMemoryWindowFull, setIsMemoryWindowFull] = useState(false);
 
   useEffect(() => {
+    if (!isDataLoaded) return;
+    
     if (!systemMemoryHistory || systemMemoryHistory.length === 0) {
       setFixedMemoryWindowData(
-        Array(50).fill().map((_, index) => ({
+        Array(bufferSize).fill().map((_, index) => ({
           index: index,
           time: null,
           value: 0
@@ -233,36 +260,31 @@ const Dashboard = React.memo(() => {
       setIsMemoryWindowFull(false);
       return;
     }
-
-    setFixedMemoryWindowData(prevData => {
-      const newData = [...prevData];
-      
-      const latestMemory = systemMemoryHistory[systemMemoryHistory.length - 1];
-      
-      const newPoint = { 
-        index: isMemoryWindowFull ? 49 : memoryCurrentPosition,
-        time: latestMemory?.timestamp || null,
-        value: latestMemory?.value || 0
-      };
-      
-      if (isMemoryWindowFull) {
-        for (let i = 0; i < 49; i++) {
-          newData[i] = { ...newData[i + 1], index: i };
-        }
-        newData[49] = newPoint;
-      } else {
-        newData[memoryCurrentPosition] = newPoint;
-        
-        if (memoryCurrentPosition >= 49) {
-          setIsMemoryWindowFull(true);
-        } else {
-          setMemoryCurrentPosition(prev => prev + 1);
-        }
+    
+    const windowData = Array(bufferSize).fill().map((_, index) => ({
+      index: index,
+      time: null,
+      value: 0
+    }));
+    
+    const pointsToUse = Math.min(systemMemoryHistory.length, bufferSize);
+    
+    for (let i = 0; i < pointsToUse; i++) {
+      const dataIndex = systemMemoryHistory.length - pointsToUse + i;
+      if (dataIndex < systemMemoryHistory.length) {
+        const memoryPoint = systemMemoryHistory[dataIndex];
+        windowData[i] = {
+          index: i,
+          time: memoryPoint?.timestamp || null,
+          value: memoryPoint?.value || 0
+        };
       }
-      
-      return newData;
-    });
-  }, [systemMemoryHistory]);
+    }
+    
+    setFixedMemoryWindowData(windowData);
+    setMemoryCurrentPosition(pointsToUse);
+    setIsMemoryWindowFull(pointsToUse >= bufferSize);
+  }, [isDataLoaded, systemMemoryHistory, bufferSize]);
 
   // Define default layout
   const defaultLayout = [
@@ -544,12 +566,17 @@ const Dashboard = React.memo(() => {
 
     const fetchSystemData = async () => {
       try {
-        const [sysRes, historyRes, latestSysRes] = await Promise.all([
+        const [sysRes, historyRes, latestSysRes, bufferConfigRes] = await Promise.all([
           fetch(`/api/system`),
           fetch(`/api/system/metrics/history`),
-          fetch(`/api/system/metrics/latest`)
+          fetch(`/api/system/metrics/latest`),
+          fetch(`/api/system/buffer-config`)
         ]);
 
+        const bufferConfigData = bufferConfigRes.ok ? await bufferConfigRes.json() : null;
+        if (bufferConfigData && bufferConfigData.buffer_size) {
+          setBufferSize(bufferConfigData.buffer_size);
+        }
 
         const sysData = sysRes.ok ? await sysRes.json() : null;
         if (sysData) {
@@ -578,6 +605,8 @@ const Dashboard = React.memo(() => {
             setCPUCoreHistory(historyData.cpuCoreHistories || {});
             setSystemMemoryHistory(historyData.memoryHistory || []);
             setSystemCpuHistory(historyData.systemCpuHistory || []);
+            
+            setIsDataLoaded(true);
           }
         }
 
@@ -928,49 +957,98 @@ useEffect(() => {
   </div>
 )}
 
-      <div className="flex justify-start mb-4">
+      <div className="flex justify-start mb-4 relative gap-2">
         <button 
-          onClick={resetToDefaultLayout}
+          onClick={() => {
+            resetToDefaultLayout();
+            
+            setVisibleComponents(prev => {
+              const allVisible = {};
+              Object.keys(prev).forEach(key => {
+                allVisible[key] = true;
+              });
+              
+              setLayout(prevLayout => {
+                const allItems = [...prevLayout];
+                Object.keys(allVisible).forEach(componentId => {
+                  const existingItem = prevLayout.find(item => item.i === componentId);
+                  if (!existingItem) {
+                    const defaultItem = defaultLayout.find(item => item.i === componentId);
+                    if (defaultItem) {
+                      allItems.push({ ...defaultItem });
+                    }
+                  }
+                });
+                return allItems;
+              });
+              
+              return allVisible;
+            });
+          }}
           className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
         >
           Reset Layout
         </button>
-      </div>
-
-      {/* Visibility Toggles */}
-      <div className="flex justify-start mb-4">
-        {Object.keys(visibleComponents).map(componentId => (
-          <div key={componentId} className="flex items-center mr-4">
-            <input
-              type="checkbox"
-              checked={visibleComponents[componentId]}
-              onChange={() => {
-                // Use functional updates to avoid stale state and ensure correct add/remove behavior
-                setVisibleComponents(prev => {
-                  const nextVisible = !prev[componentId];
-                  setLayout(prevLayout => {
-                    if (nextVisible) {
-                      // Restoring original size by re-adding the item's default layout
-                      const defaultItem = defaultLayout.find(item => item.i === componentId);
-                      if (!defaultItem) return prevLayout;
-                      const without = prevLayout.filter(item => item.i !== componentId);
-                      return [...without, { ...defaultItem }];
-                    } else {
-                      // Hiding: remove from layout
-                      return prevLayout.filter(item => item.i !== componentId);
-                    }
-                  });
-                  return {
-                    ...prev,
-                    [componentId]: nextVisible
-                  };
-                });
-              }}
-              className="w-4 h-4 cursor-pointer"
-            />
-            <label className="ml-2 text-sm">{componentId}</label>
+        
+        <button 
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          className="px-3 py-1.5 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 transition-colors flex items-center text-sm"
+        >
+          Toggle Dashboard Cards
+          <svg 
+            className={`ml-1.5 w-3.5 h-3.5 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        {isDropdownOpen && (
+          <div className="absolute top-full left-0 mt-1 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50 p-4">
+            <div className="space-y-3">
+              {Object.keys(visibleComponents).map(componentId => (
+                <div key={componentId} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={visibleComponents[componentId]}
+                    onChange={() => {
+                      setVisibleComponents(prev => {
+                        const nextVisible = !prev[componentId];
+                        setLayout(prevLayout => {
+                          if (nextVisible) {
+                            const defaultItem = defaultLayout.find(item => item.i === componentId);
+                            if (!defaultItem) return prevLayout;
+                            const without = prevLayout.filter(item => item.i !== componentId);
+                            return [...without, { ...defaultItem }];
+                          } else {
+                            return prevLayout.filter(item => item.i !== componentId);
+                          }
+                        });
+                        return {
+                          ...prev,
+                          [componentId]: nextVisible
+                        };
+                      });
+                    }}
+                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <label className="ml-3 text-sm font-medium text-gray-700 capitalize cursor-pointer">
+                    {componentId.replace(/-/g, ' ')}
+                  </label>
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
+        )}
+        
+        {isDropdownOpen && (
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setIsDropdownOpen(false)}
+          />
+        )}
       </div>
       
       {/* Grid Layout */}
