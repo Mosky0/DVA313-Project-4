@@ -384,7 +384,12 @@ def container_logs(container_id):
         tail_lines = get_log_tail_lines()
 
         raw = container.logs(tail=tail_lines).decode("utf-8", errors="replace")
-        now = datetime.datetime.now(ZoneInfo("Europe/Stockholm")).isoformat()
+        try:
+            from zoneinfo import ZoneInfo
+            now = datetime.datetime.now(ZoneInfo("Europe/Stockholm")).isoformat()
+        except Exception:
+            # Fallback to UTC if ZoneInfo fails, used in the tests
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         
         lines = [f"[{now}] {line}" for line in raw.splitlines()]
 
