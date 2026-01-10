@@ -1,4 +1,5 @@
 import datetime
+from zoneinfo import ZoneInfo
 from app.utils.containerUptime import container_uptime_info
 import time
 from app.utils.loggerConfig import InitializeLogger
@@ -8,6 +9,8 @@ from flask import Blueprint, jsonify, request
 from app.utils.ringBuffer import addContainerMetrics, getStoredMetrics, getLatestContainerMetrics, addSystemMetrics
 from app.utils.containerCache import container_stats_cache, container_stats_lock
 from app.utils.dockerClient import DockerClientProvider
+import docker
+from docker.errors import NotFound, APIError
 
 #config file functions
 from app.app_config import (
@@ -145,8 +148,8 @@ def system_metrics():
             if p.info["status"] == psutil.STATUS_RUNNING:
                 running += 1
 
-        total_cpu = psutil.cpu_percent(interval=0.1)
-        per_core = psutil.cpu_percent(interval=0.1, percpu=True)
+        per_core = psutil.cpu_percent(interval=0.2, percpu=True)
+        total_cpu = sum(per_core) / len(per_core) if per_core else 0.0
 
         mem = psutil.virtual_memory()
         used_bytes = mem.used
@@ -362,6 +365,8 @@ def container_logs(container_id):
         tail_lines = get_log_tail_lines()
         raw = container.logs(tail=tail_lines).decode("utf-8", errors="replace")
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        raw = container.logs(tail=50).decode("utf-8", errors="replace")
+        now = datetime.datetime.now(ZoneInfo("Europe/Stockholm")).isoformat()
 
         lines = [f"[{now}] {line}" for line in raw.splitlines()]
 

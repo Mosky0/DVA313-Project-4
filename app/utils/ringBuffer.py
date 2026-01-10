@@ -1,8 +1,15 @@
 import threading
+from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
+import time
 import os
-from datetime import datetime
 from collections import defaultdict, deque
 from app.app_config import get_ring_buffer_size
+
+if hasattr(time, 'tzset'):
+    
+    os.environ['TZ'] = ''
+    time.tzset()
 
 class RingBuffer:
     def __init__(self, size):
@@ -73,8 +80,10 @@ def addContainerMetrics(container_id, metrics):
         initializeContainerBuffers(container_id)
     
     if 'cpu_percent' in metrics and isinstance(metrics['cpu_percent'], (int, float)):
+        now = datetime.now(ZoneInfo("Europe/Stockholm"))
+        timestamp_str = now.strftime("%H:%M:%S")
         containerMetricsStorage[container_id]['cpuBuffer'].push({
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp_str,
             'value': metrics['cpu_percent']
         })
 
@@ -84,8 +93,10 @@ def addContainerMetrics(container_id, metrics):
         
         memory_percent = (metrics['mem_usage_bytes'] / metrics['mem_limit_bytes']) * 100 if metrics['mem_limit_bytes'] > 0 else 0
         
+        now = datetime.now(ZoneInfo("Europe/Stockholm"))
+        timestamp_str = now.strftime("%H:%M:%S")
         containerMetricsStorage[container_id]['memoryBuffer'].push({
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp_str,
             'value': memory_percent,
             'usageBytes': metrics['mem_usage_bytes'],
             'limitBytes': metrics['mem_limit_bytes']
@@ -97,15 +108,19 @@ def addSystemMetrics(system_data):
     initializeSystemBuffers(len(cpu_per_core))
     
     if isinstance(cpu_total, (int, float)):
+        now = datetime.now(ZoneInfo("Europe/Stockholm"))
+        timestamp_str = now.strftime("%H:%M:%S")
         systemMetricsStorage['systemCpuBuffer'].push({
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp_str,
             'value': cpu_total
         })
     
     for core_idx, core_value in enumerate(cpu_per_core):
         if isinstance(core_value, (int, float)):
+            now = datetime.now(ZoneInfo("Europe/Stockholm"))
+            timestamp_str = now.strftime("%H:%M:%S")
             systemMetricsStorage['cpuCoreBuffers'][core_idx].push({
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': timestamp_str,
                 'value': core_value
             })
     
@@ -115,8 +130,10 @@ def addSystemMetrics(system_data):
     
     if isinstance(used_bytes, (int, float)) and isinstance(limit_bytes, (int, float)):
         memory_percent = (used_bytes / limit_bytes) * 100 if limit_bytes > 0 else 0
+        now = datetime.now(ZoneInfo("Europe/Stockholm"))
+        timestamp_str = now.strftime("%H:%M:%S")
         systemMetricsStorage['memoryBuffer'].push({
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp_str,
             'value': memory_percent,
             'usageBytes': used_bytes,
             'limitBytes': limit_bytes
