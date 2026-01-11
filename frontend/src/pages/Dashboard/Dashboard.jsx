@@ -574,10 +574,11 @@ const Dashboard = React.memo(() => {
         ]);
 
         const bufferConfigData = bufferConfigRes.ok ? await bufferConfigRes.json() : null;
-        if (bufferConfigData && bufferConfigData.buffer_size) {
+        if (bufferConfigData?.buffer_size &&
+          bufferConfigData.buffer_size !== bufferSize)
+      {
           setBufferSize(bufferConfigData.buffer_size);
         }
-
         const sysData = sysRes.ok ? await sysRes.json() : null;
         if (sysData) {
           try {
@@ -602,9 +603,27 @@ const Dashboard = React.memo(() => {
         const historyData = historyRes.ok ? await historyRes.json() : null;
         if (historyData) {
           if (mounted) {
-            setCPUCoreHistory(historyData.cpuCoreHistories || {});
-            setSystemMemoryHistory(historyData.memoryHistory || []);
-            setSystemCpuHistory(historyData.systemCpuHistory || []);
+            setCPUCoreHistory(prev => {
+              const updated = { ...prev };
+
+              Object.entries(historyData.cpuCoreHistories || {}).forEach(
+                ([coreIdx, points]) => {
+                  const prevCore = updated[coreIdx] || [];
+                  updated[coreIdx] = [...prevCore, ...points].slice(-bufferSize);
+                }
+              );
+
+              return updated;
+            });
+
+            setSystemMemoryHistory(prev => {
+              const next = [...prev, ...(historyData.memoryHistory || [])];
+              return next.slice(-bufferSize);
+            });
+            setSystemCpuHistory(prev => {
+              const next = [...prev, ...(historyData.systemCpuHistory || [])];
+              return next.slice(-bufferSize);
+            });
             
             setIsDataLoaded(true);
           }
