@@ -123,7 +123,7 @@ const Dashboard = React.memo(() => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const wasDisconnected = useRef(false);
   
-  const [bufferSize, setBufferSize] = useState(50); 
+  const [bufferSize, setBufferSize] = useState(360); 
 
   const [fixedWindowData, setFixedWindowData] = useState(
     Array(bufferSize).fill().map((_, index) => ({
@@ -621,7 +621,7 @@ const Dashboard = React.memo(() => {
     };
 
     fetchSystemData();
-    const iv = setInterval(fetchSystemData, 3000); 
+    const iv = setInterval(fetchSystemData, 5000); 
 
     return () => {
       mounted = false;
@@ -652,7 +652,7 @@ const Dashboard = React.memo(() => {
     };
 
     fetchAllContainerStats();
-    const iv = setInterval(fetchAllContainerStats, 3000);
+    const iv = setInterval(fetchAllContainerStats, 5000);
 
     return () => {
       mounted = false;
@@ -699,7 +699,7 @@ const Dashboard = React.memo(() => {
 
    checkBackend();
 
-  const interval = setInterval(checkBackend, 3000);
+  const interval = setInterval(checkBackend, 5000);
 
   return () => {
     mounted = false;
@@ -749,7 +749,7 @@ useEffect(() => {
   const memoryTrendSeries = useMemo(() => {
     if (!systemMemoryHistory || systemMemoryHistory.length === 0) return [];
    
-    const maxLength = Math.min(systemMemoryHistory.length, 50);
+    const maxLength = Math.min(systemMemoryHistory.length, 360);
     const startIndex = systemMemoryHistory.length - maxLength;
    
     return systemMemoryHistory.slice(startIndex).map((entry, idx) => ({
