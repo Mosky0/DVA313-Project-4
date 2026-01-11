@@ -559,17 +559,15 @@ const Dashboard = React.memo(() => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fetch system data
+  // Initial fetch
   useEffect(() => {
     let mounted = true;
 
-
-    const fetchSystemData = async () => {
+    const fetchInitialSystemData = async () => {
       try {
-        const [sysRes, historyRes, latestSysRes, bufferConfigRes] = await Promise.all([
+        const [sysRes, historyRes, bufferConfigRes] = await Promise.all([
           fetch(`/api/system`),
           fetch(`/api/system/metrics/history`),
-          fetch(`/api/system/metrics/latest`),
           fetch(`/api/system/buffer-config`)
         ]);
 
@@ -579,40 +577,20 @@ const Dashboard = React.memo(() => {
         }
 
         const sysData = sysRes.ok ? await sysRes.json() : null;
-        if (sysData) {
-          try {
-            const latestSysData = latestSysRes.ok ? await latestSysRes.json() : null;
-           
-            if (latestSysData && latestSysData.systemCpu) {
-              sysData.cpu = {
-                ...sysData.cpu,
-                total_percent: latestSysData.systemCpu.value
-              };
-            }
-          } catch (e) {
-            console.warn("Failed to fetch latest system metrics:", e);
-          }
-         
-         if (mounted) {
-        setSystem(sysData);
-        
-       }
-
+        if (sysData && mounted) {
+          setSystem(sysData);
         }
+
         const historyData = historyRes.ok ? await historyRes.json() : null;
-        if (historyData) {
-          if (mounted) {
-            setCPUCoreHistory(historyData.cpuCoreHistories || {});
-            setSystemMemoryHistory(historyData.memoryHistory || []);
-            setSystemCpuHistory(historyData.systemCpuHistory || []);
-            
-            setIsDataLoaded(true);
-          }
+        if (historyData && mounted) {
+          setCPUCoreHistory(historyData.cpuCoreHistories || {});
+          setSystemMemoryHistory(historyData.memoryHistory || []);
+          setSystemCpuHistory(historyData.systemCpuHistory || []);
+          setIsDataLoaded(true);
         }
 
       } catch (e) {
-      console.error("fetchSystemData error:", e);
-      
+        console.error("fetchInitialSystemData error:", e);
       } finally {
         if (mounted) {
           setLoadingSys(false);
@@ -620,14 +598,103 @@ const Dashboard = React.memo(() => {
       }
     };
 
-    fetchSystemData();
-    const iv = setInterval(fetchSystemData, 5000); 
+    fetchInitialSystemData();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchLatestSystemValues = async () => {
+      if (!isDataLoaded) return;
+
+      try {
+        const [sysRes, latestSysRes] = await Promise.all([
+          fetch(`/api/system`),
+          fetch(`/api/system/metrics/latest`)
+        ]);
+
+        const sysData = sysRes.ok ? await sysRes.json() : null;
+        if (sysData && mounted) {
+          const latestSysData = latestSysRes.ok ? await latestSysRes.json() : null;
+          if (latestSysData && latestSysData.systemCpu) {
+            sysData.cpu = {
+              ...sysData.cpu,
+              total_percent: latestSysData.systemCpu.value
+            };
+          }
+          setSystem(sysData);
+
+          const now = new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+
+          if (latestSysData && latestSysData.systemCpu) {
+            setSystemCpuHistory(prev => [
+              ...prev,
+              {
+                timestamp: now,
+                value: latestSysData.systemCpu.value
+              }
+            ].slice(-bufferSize)); 
+          }
+
+
+          if (latestSysData && latestSysData.memory) {
+            setSystemMemoryHistory(prev => [
+              ...prev,
+              {
+                timestamp: now,
+                value: latestSysData.memory.value
+              }
+            ].slice(-bufferSize));
+          }
+
+          if (latestSysData && latestSysData.cpuCores) {
+            setCPUCoreHistory(prev => {
+              const updated = {...prev};
+              Object.entries(latestSysData.cpuCores).forEach(([coreIdx, coreData]) => {
+                if (coreData) {
+                  if (!updated[coreIdx]) updated[coreIdx] = [];
+                  updated[coreIdx] = [
+                    ...updated[coreIdx],
+                    {
+                      timestamp: now,
+                      value: coreData.value
+                    }
+                  ].slice(-bufferSize);
+                }
+              });
+              return updated;
+            });
+          }
+        }
+
+      } catch (e) {
+        console.error("fetchLatestSystemValues error:", e);
+      }
+    };
+
+    if (isDataLoaded) {
+      fetchLatestSystemValues();
+    }
+
+    const iv = setInterval(() => {
+      if (mounted && isDataLoaded) {
+        fetchLatestSystemValues();
+      }
+    }, 5000);
 
     return () => {
       mounted = false;
       clearInterval(iv);
     };
-  }, []);
+  }, [isDataLoaded, bufferSize]);
 
   useEffect(() => {
     let mounted = true;
