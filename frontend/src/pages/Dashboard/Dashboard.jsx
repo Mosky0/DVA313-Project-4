@@ -121,6 +121,8 @@ const Dashboard = React.memo(() => {
   });
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [cpuYAxisScale, setCpuYAxisScale] = useState(100); 
+  const [memoryYAxisScale, setMemoryYAxisScale] = useState(100); 
   const wasDisconnected = useRef(false);
   
   const [bufferSize, setBufferSize] = useState(360); 
@@ -788,20 +790,8 @@ useEffect(() => {
   }, [fixedWindowData]);
 
   const cpuTrendMax = useMemo(() => {
-    if (!cpuTrendSeries.length) return 100;
-
-    let max = 0;
-    for (const row of cpuTrendSeries) {
-      for (const [k, v] of Object.entries(row)) {
-        if (k === "time") continue;
-        const n = typeof v === "number" ? v : Number(v);
-        if (Number.isFinite(n)) max = Math.max(max, n);
-      }
-    }
-
-    const padded = max + Math.max(5, max * 0.1);
-    return Math.min(100, Math.ceil(padded));
-  }, [cpuTrendSeries]);
+    return cpuYAxisScale;
+  }, [cpuYAxisScale]);
 
   const memPct = useMemo(() => {
     if (!system) return 0;
@@ -826,17 +816,8 @@ useEffect(() => {
   }, [systemMemoryHistory]);
 
   const memoryTrendMax = useMemo(() => {
-    if (!fixedMemoryWindowData.length) return 100;
-
-    let max = 0;
-    for (const row of fixedMemoryWindowData) {
-      const value = typeof row.value === "number" ? row.value : Number(row.value);
-      if (Number.isFinite(value)) max = Math.max(max, value);
-    }
-
-    const padded = max + Math.max(5, max * 0.1);
-    return Math.min(100, Math.ceil(padded));
-  }, [fixedMemoryWindowData]);
+    return memoryYAxisScale;
+  }, [memoryYAxisScale]);
 
 
   const derivedAlerts = useMemo(() => {
@@ -1313,6 +1294,20 @@ useEffect(() => {
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium">CPU trend (selected cores)</div>
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Y-Axis:</span>
+                <select 
+                  value={cpuYAxisScale}
+                  onChange={(e) => setCpuYAxisScale(Number(e.target.value))}
+                  className="text-xs border rounded px-2 py-1"
+                >
+                  <option value={10}>10%</option>
+                  <option value={25}>25%</option>
+                  <option value={50}>50%</option>
+                  <option value={75}>75%</option>
+                  <option value={100}>100%</option>
+                </select>
+              </div>
               <div className="text-xs text-gray-500">
                 {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
               </div>
@@ -1398,12 +1393,28 @@ useEffect(() => {
         <div key="memory-trend-chart" className="bg-white rounded-2xl shadow p-3 flex flex-col h-full">
           <div className="flex justify-between items-start mb-2">
             <div className="text-sm font-medium">System Memory trend</div>
-            <button
-              onClick={() => toggleComponentState("memory-trend-chart")}
-              className="text-xs text-gray-500 hover:text-gray-700"
-            >
-              {getButtonIcon("memory-trend-chart")}
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Y-Axis:</span>
+                <select 
+                  value={memoryYAxisScale}
+                  onChange={(e) => setMemoryYAxisScale(Number(e.target.value))}
+                  className="text-xs border rounded px-2 py-1"
+                >
+                  <option value={10}>10%</option>
+                  <option value={25}>25%</option>
+                  <option value={50}>50%</option>
+                  <option value={75}>75%</option>
+                  <option value={100}>100%</option>
+                </select>
+              </div>
+              <button
+                onClick={() => toggleComponentState("memory-trend-chart")}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                {getButtonIcon("memory-trend-chart")}
+              </button>
+            </div>
           </div>
 
           {loadingSys || !system ? (
