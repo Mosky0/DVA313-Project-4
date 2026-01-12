@@ -121,6 +121,9 @@ const Dashboard = React.memo(() => {
   });
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
+  const initialTimeRange = localStorage.getItem('dashboard_time_range') || '30min';
+  
   const [cpuYAxisScale, setCpuYAxisScale] = useState(() => {
     const saved = localStorage.getItem('dashboard_cpu_yaxis_scale');
     return saved ? Number(saved) : 100;
@@ -129,9 +132,14 @@ const Dashboard = React.memo(() => {
     const saved = localStorage.getItem('dashboard_memory_yaxis_scale');
     return saved ? Number(saved) : 100;
   }); 
+  const [timeRange, setTimeRange] = useState(initialTimeRange);
   const wasDisconnected = useRef(false);
   
-  const [bufferSize, setBufferSize] = useState(360); 
+  const [bufferSize, setBufferSize] = useState(() => {
+    const savedRange = localStorage.getItem('dashboard_time_range') || '30min';
+    const rangeMap = { '1min': 12, '5min': 60, '15min': 180, '30min': 360 };
+    return rangeMap[savedRange] || 360;
+  }); 
 
   useEffect(() => {
     localStorage.setItem('dashboard_cpu_yaxis_scale', cpuYAxisScale.toString());
@@ -140,6 +148,13 @@ const Dashboard = React.memo(() => {
   useEffect(() => {
     localStorage.setItem('dashboard_memory_yaxis_scale', memoryYAxisScale.toString());
   }, [memoryYAxisScale]);
+
+  // Handle time range changes
+  useEffect(() => {
+    const rangeMap = { '1min': 12, '5min': 60, '15min': 180, '30min': 360 };
+    setBufferSize(rangeMap[timeRange] || 360);
+    localStorage.setItem('dashboard_time_range', timeRange);
+  }, [timeRange]);
 
   const [fixedWindowData, setFixedWindowData] = useState(
     Array(bufferSize).fill().map((_, index) => ({
@@ -1322,6 +1337,19 @@ useEffect(() => {
                   <option value={100}>100%</option>
                 </select>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Time:</span>
+                <select 
+                  value={timeRange}
+                  onChange={(e) => setTimeRange(e.target.value)}
+                  className="text-xs border rounded px-2 py-1"
+                >
+                  <option value="1min">1 min</option>
+                  <option value="5min">5 min</option>
+                  <option value="15min">15 min</option>
+                  <option value="30min">30 min</option>
+                </select>
+              </div>
               <div className="text-xs text-gray-500">
                 {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
               </div>
@@ -1420,6 +1448,19 @@ useEffect(() => {
                   <option value={50}>50%</option>
                   <option value={75}>75%</option>
                   <option value={100}>100%</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Time:</span>
+                <select 
+                  value={timeRange}
+                  onChange={(e) => setTimeRange(e.target.value)}
+                  className="text-xs border rounded px-2 py-1"
+                >
+                  <option value="1min">1 min</option>
+                  <option value="5min">5 min</option>
+                  <option value="15min">15 min</option>
+                  <option value="30min">30 min</option>
                 </select>
               </div>
               <button
