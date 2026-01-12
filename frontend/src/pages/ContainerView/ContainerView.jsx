@@ -764,7 +764,7 @@ export default function ContainerView() {
                       tick={{ fontSize: 10 }}
                       tickFormatter={(index) => {
                         const dataPoint = fixedCpuWindowData[index];
-                        if (dataPoint && dataPoint.time) {
+                        if (dataPoint && dataPoint.time && dataPoint.time !== "Invalid Date" && dataPoint.time !== "-0m") {
                           return dataPoint.time;
                         }
                         return '';
@@ -785,10 +785,10 @@ export default function ContainerView() {
                       formatter={(value) => [`${Number(value).toFixed(1)}%`, 'CPU']}
                       labelFormatter={(index) => {
                         const dataPoint = fixedCpuWindowData[index];
-                        if (dataPoint && dataPoint.time) {
+                        if (dataPoint && dataPoint.time && dataPoint.time !== "Invalid Date" && dataPoint.time !== "-0m") {
                           return `Time: ${dataPoint.time}`;
                         }
-                        return `Point ${index}`;
+                        return '';
                       }}
                     />
                     <Line
@@ -832,8 +832,8 @@ export default function ContainerView() {
                       ? 1
                       : -1
                     : valA < valB
-                    ? 1
-                    : -1;
+                  ? 1
+                  : -1;
                 });
 
                 return (
