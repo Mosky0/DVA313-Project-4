@@ -121,11 +121,25 @@ const Dashboard = React.memo(() => {
   });
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [cpuYAxisScale, setCpuYAxisScale] = useState(100); 
-  const [memoryYAxisScale, setMemoryYAxisScale] = useState(100); 
+  const [cpuYAxisScale, setCpuYAxisScale] = useState(() => {
+    const saved = localStorage.getItem('dashboard_cpu_yaxis_scale');
+    return saved ? Number(saved) : 100;
+  }); 
+  const [memoryYAxisScale, setMemoryYAxisScale] = useState(() => {
+    const saved = localStorage.getItem('dashboard_memory_yaxis_scale');
+    return saved ? Number(saved) : 100;
+  }); 
   const wasDisconnected = useRef(false);
   
   const [bufferSize, setBufferSize] = useState(360); 
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_cpu_yaxis_scale', cpuYAxisScale.toString());
+  }, [cpuYAxisScale]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_memory_yaxis_scale', memoryYAxisScale.toString());
+  }, [memoryYAxisScale]);
 
   const [fixedWindowData, setFixedWindowData] = useState(
     Array(bufferSize).fill().map((_, index) => ({
