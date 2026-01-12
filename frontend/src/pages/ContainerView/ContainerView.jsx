@@ -13,6 +13,8 @@ import {
 } from "recharts";
 import { containerCache } from "../../utils/cache";
 
+const WINDOW_SIZE = 60;
+
 export default function ContainerView() {
   const { id } = useParams();
   const location = useLocation();
@@ -23,8 +25,10 @@ export default function ContainerView() {
   const [isStopping, setIsStopping] = useState(false);
   const [cpuHistory, setCpuHistory] = useState([]);
   
+  const TOAST_ID = "status-error-container-view";
+  
   const [fixedCpuWindowData, setFixedCpuWindowData] = useState(
-    Array(50).fill().map((_, index) => ({
+    Array(WINDOW_SIZE).fill().map((_, index) => ({
       index: index,
       time: null,
       value: 0
@@ -32,27 +36,24 @@ export default function ContainerView() {
   );
   
   const [cpuCurrentPosition, setCpuCurrentPosition] = useState(0);
-  const [isCpuWindowFull, setIsCpuWindowFull] = useState(false);
   
   useEffect(() => {
     if (!cpuHistory || cpuHistory.length === 0) {
       setFixedCpuWindowData(
-        Array(50).fill().map((_, index) => ({
+        Array(WINDOW_SIZE).fill().map((_, index) => ({
           index: index,
           time: null,
           value: 0
         }))
       );
       setCpuCurrentPosition(0);
-      setIsCpuWindowFull(false);
       return;
     }
     
-    const maxPoints = 50;
     const availablePoints = cpuHistory.length;
-    const pointsToUse = Math.min(availablePoints, maxPoints);
+    const pointsToUse = Math.min(availablePoints, WINDOW_SIZE);
     
-    const windowData = Array(50).fill().map((_, index) => ({
+    const windowData = Array(WINDOW_SIZE).fill().map((_, index) => ({
       index: index,
       time: null,
       value: 0
@@ -69,7 +70,6 @@ export default function ContainerView() {
     
     setFixedCpuWindowData(windowData);
     setCpuCurrentPosition(pointsToUse);
-    setIsCpuWindowFull(pointsToUse >= 50);
   }, [cpuHistory]);
   const [filePathInput, setFilePathInput] = useState("");
   const [fileTabs, setFileTabs] = useState([]);
@@ -314,8 +314,6 @@ export default function ContainerView() {
 
   // --------- FETCH STATS----------
   useEffect(() => {
-    const TOAST_ID = "status-error-container-view";
-
     const POLL_MS = 5000;
     const controller = new AbortController();
 
@@ -378,7 +376,21 @@ export default function ContainerView() {
 
         const cpu = Number(payload?.cpu_percent ?? 0);
         const point = { time: new Date().toLocaleTimeString(), value: cpu };
+        
         setCpuHistory((prev) => [...prev, point].slice(-30));
+        
+        setFixedCpuWindowData(prevWindow => {
+          const newData = [...prevWindow];
+          const insertIndex = cpuCurrentPosition % WINDOW_SIZE;
+          newData[insertIndex] = {
+            index: insertIndex,
+            time: point.time,
+            value: point.value
+          };
+          return newData;
+        });
+        
+        setCpuCurrentPosition(prev => prev + 1);
       } catch (err) {
         if (err?.name === "AbortError") return;
         console.error(err);
@@ -767,6 +779,7 @@ export default function ContainerView() {
                       domain={[0, cpuTrendMax]}
                       tick={{ fontSize: 12 }}
                       width={30}
+                      tickFormatter={(value) => `${Number(value).toFixed(1)}%`}
                     />
                     <Tooltip 
                       formatter={(value) => [`${Number(value).toFixed(1)}%`, 'CPU']}
