@@ -1319,33 +1319,49 @@ useEffect(() => {
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium">CPU trend (selected cores)</div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Y-Axis:</span>
-                <select 
-                  value={cpuYAxisScale}
-                  onChange={(e) => setCpuYAxisScale(Number(e.target.value))}
-                  className="text-xs border rounded px-2 py-1"
-                >
-                  <option value={10}>10%</option>
-                  <option value={25}>25%</option>
-                  <option value={50}>50%</option>
-                  <option value={75}>75%</option>
-                  <option value={100}>100%</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Time:</span>
-                <select 
-                  value={timeRange}
-                  onChange={(e) => setTimeRange(e.target.value)}
-                  className="text-xs border rounded px-2 py-1"
-                >
-                  <option value="1min">1 min</option>
-                  <option value="5min">5 min</option>
-                  <option value="15min">15 min</option>
-                  <option value="30min">30 min</option>
-                </select>
-              </div>
+              {(() => {
+                const cpuTrendItem = layout.find(item => item.i === 'cpu-trend-chart');
+                const showAxisButtons = cpuTrendItem && cpuTrendItem.w >= 4;
+                
+                return showAxisButtons ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">Y-Axis:</span>
+                      <select 
+                        value={cpuYAxisScale}
+                        onChange={(e) => setCpuYAxisScale(Number(e.target.value))}
+                        className="text-xs border rounded px-2 py-1"
+                      >
+                        <option value={10}>10%</option>
+                        <option value={25}>25%</option>
+                        <option value={50}>50%</option>
+                        <option value={75}>75%</option>
+                        <option value={100}>100%</option>
+                      </select>
+                    </div>
+                  </>
+                ) : null;
+              })()}
+              {(() => {
+                const cpuTrendItem = layout.find(item => item.i === 'cpu-trend-chart');
+                const showAxisButtons = cpuTrendItem && cpuTrendItem.w >= 4;
+                
+                return showAxisButtons ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Time:</span>
+                    <select 
+                      value={timeRange}
+                      onChange={(e) => setTimeRange(e.target.value)}
+                      className="text-xs border rounded px-2 py-1"
+                    >
+                      <option value="1min">1 min</option>
+                      <option value="5min">5 min</option>
+                      <option value="15min">15 min</option>
+                      <option value="30min">30 min</option>
+                    </select>
+                  </div>
+                ) : null;
+              })()}
               <div className="text-xs text-gray-500">
                 {loadingSys || !system ? 'Loading...' : `Selected: ${Object.values(selectedCores).filter(Boolean).length} items`}
               </div>
@@ -1432,33 +1448,49 @@ useEffect(() => {
           <div className="flex justify-between items-start mb-2">
             <div className="text-sm font-medium">System Memory trend</div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Y-Axis:</span>
-                <select 
-                  value={memoryYAxisScale}
-                  onChange={(e) => setMemoryYAxisScale(Number(e.target.value))}
-                  className="text-xs border rounded px-2 py-1"
-                >
-                  <option value={10}>10%</option>
-                  <option value={25}>25%</option>
-                  <option value={50}>50%</option>
-                  <option value={75}>75%</option>
-                  <option value={100}>100%</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Time:</span>
-                <select 
-                  value={timeRange}
-                  onChange={(e) => setTimeRange(e.target.value)}
-                  className="text-xs border rounded px-2 py-1"
-                >
-                  <option value="1min">1 min</option>
-                  <option value="5min">5 min</option>
-                  <option value="15min">15 min</option>
-                  <option value="30min">30 min</option>
-                </select>
-              </div>
+              {(() => {
+                const memoryTrendItem = layout.find(item => item.i === 'memory-trend-chart');
+                const showAxisButtons = memoryTrendItem && memoryTrendItem.w >= 3;
+                
+                return showAxisButtons ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">Y-Axis:</span>
+                      <select 
+                        value={memoryYAxisScale}
+                        onChange={(e) => setMemoryYAxisScale(Number(e.target.value))}
+                        className="text-xs border rounded px-2 py-1"
+                      >
+                        <option value={10}>10%</option>
+                        <option value={25}>25%</option>
+                        <option value={50}>50%</option>
+                        <option value={75}>75%</option>
+                        <option value={100}>100%</option>
+                      </select>
+                    </div>
+                  </>
+                ) : null;
+              })()}
+              {(() => {
+                const memoryTrendItem = layout.find(item => item.i === 'memory-trend-chart');
+                const showAxisButtons = memoryTrendItem && memoryTrendItem.w >= 3;
+                
+                return showAxisButtons ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Time:</span>
+                    <select 
+                      value={timeRange}
+                      onChange={(e) => setTimeRange(e.target.value)}
+                      className="text-xs border rounded px-2 py-1"
+                    >
+                      <option value="1min">1 min</option>
+                      <option value="5min">5 min</option>
+                      <option value="15min">15 min</option>
+                      <option value="30min">30 min</option>
+                    </select>
+                  </div>
+                ) : null;
+              })()}
               <button
                 onClick={() => toggleComponentState("memory-trend-chart")}
                 className="text-xs text-gray-500 hover:text-gray-700"
