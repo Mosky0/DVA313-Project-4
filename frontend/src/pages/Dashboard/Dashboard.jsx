@@ -136,9 +136,8 @@ const Dashboard = React.memo(() => {
   const wasDisconnected = useRef(false);
   
   const [bufferSize, setBufferSize] = useState(() => {
-    const savedRange = localStorage.getItem('dashboard_time_range') || '30min';
     const rangeMap = { '1min': 12, '5min': 60, '15min': 180, '30min': 360 };
-    return rangeMap[savedRange] || 360;
+    return rangeMap[initialTimeRange] || 360;
   }); 
 
   useEffect(() => {
@@ -602,10 +601,7 @@ const Dashboard = React.memo(() => {
           fetch(`/api/system/buffer-config`)
         ]);
 
-        const bufferConfigData = bufferConfigRes.ok ? await bufferConfigRes.json() : null;
-        if (bufferConfigData && bufferConfigData.buffer_size) {
-          setBufferSize(bufferConfigData.buffer_size);
-        }
+       
 
         const sysData = sysRes.ok ? await sysRes.json() : null;
         if (sysData && mounted) {
