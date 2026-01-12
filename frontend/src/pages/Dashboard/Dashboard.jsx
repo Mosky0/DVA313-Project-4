@@ -155,6 +155,39 @@ const Dashboard = React.memo(() => {
     localStorage.setItem('dashboard_time_range', timeRange);
   }, [timeRange]);
 
+  const previousBufferSizeRef = useRef(bufferSize);
+  
+  useEffect(() => {
+    let mounted = true;
+    
+    const fetchUpdatedHistory = async () => {
+      try {
+        const historyRes = await fetch(`/api/system/metrics/history`);
+        
+        if (!mounted) return;
+        
+        const historyData = historyRes.ok ? await historyRes.json() : null;
+        if (historyData) {
+          setCPUCoreHistory(historyData.cpuCoreHistories || {});
+          setSystemMemoryHistory(historyData.memoryHistory || []);
+          setSystemCpuHistory(historyData.systemCpuHistory || []);
+        }
+      } catch (e) {
+        console.error("fetchUpdatedHistory error:", e);
+      }
+    };
+    
+    if (isDataLoaded && bufferSize > previousBufferSizeRef.current) {
+      fetchUpdatedHistory();
+    }
+    
+    previousBufferSizeRef.current = bufferSize;
+    
+    return () => {
+      mounted = false;
+    };
+  }, [bufferSize, isDataLoaded]);
+
   const [fixedWindowData, setFixedWindowData] = useState(
     Array(bufferSize).fill().map((_, index) => ({
       index: index,
