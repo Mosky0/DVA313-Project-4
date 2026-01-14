@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import time
 import os
 from collections import defaultdict, deque
+from app.app_config import get_ring_buffer_size
 
 if hasattr(time, 'tzset'):
     
@@ -12,7 +13,7 @@ if hasattr(time, 'tzset'):
 
 class RingBuffer:
     def __init__(self, size):
-        self.size = size
+        self.size = size or get_ring_buffer_size()
         self.buffer = deque(maxlen=size)
         self.lock = threading.Lock()
 
