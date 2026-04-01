@@ -1,0 +1,3 @@
+{
+  "tests/integration/test_container_info_retrieval.py::test_list_containers_with_stats": true
+}
